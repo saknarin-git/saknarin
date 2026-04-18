@@ -19,6 +19,7 @@ const defaultOverview: AdminOverview = {
   users_count: 0,
   approved_users_count: 0,
   pending_users_count: 0,
+  officer_users_count: 0,
   admin_users_count: 0,
   loan_contracts_count: 0,
   active_loan_contracts_count: 0,

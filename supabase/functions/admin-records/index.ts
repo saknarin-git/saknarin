@@ -1,6 +1,6 @@
 import '../_shared/edge-runtime.d.ts';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { adminClient, ensureAdmin } from '../_shared/supabaseAdmin.ts';
+import { adminClient, ensureStaff } from '../_shared/supabaseAdmin.ts';
 
 type ResourceType = 'members' | 'loans';
 
@@ -396,7 +396,7 @@ Deno.serve(async (request) => {
 
   try {
     const accessToken = request.headers.get('Authorization')?.replace('Bearer ', '');
-    const adminProfile = await ensureAdmin(accessToken);
+    const staffProfile = await ensureStaff(accessToken);
     const url = new URL(request.url);
 
     if (request.method === 'GET') {
@@ -451,7 +451,7 @@ Deno.serve(async (request) => {
       const resourceType = getResourceType(resource ?? null);
 
       if (resourceType === 'members') {
-        await deleteMember(String(memberNo ?? '').trim(), adminProfile.member_no);
+        await deleteMember(String(memberNo ?? '').trim(), staffProfile.member_no);
         return jsonResponse({ success: true, message: 'ลบข้อมูลสมาชิกเรียบร้อย' });
       }
 

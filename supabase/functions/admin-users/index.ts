@@ -286,6 +286,7 @@ Deno.serve(async (request) => {
       const usersList = users ?? [];
       const pendingUsers = usersList.filter((user) => user.approval_status === 'pending').length;
       const approvedUsers = usersList.filter((user) => user.approval_status === 'approved').length;
+      const officerUsers = usersList.filter((user) => user.role === 'officer').length;
       const adminUsers = usersList.filter((user) => user.role === 'admin').length;
       const loans = (loanRows ?? []) as LoanOverviewRow[];
       const totalLoanAmount = loans.reduce((sum, loan) => sum + Number(loan.loan_amount ?? 0), 0);
@@ -312,6 +313,7 @@ Deno.serve(async (request) => {
             users_count: usersList.length,
             approved_users_count: approvedUsers,
             pending_users_count: pendingUsers,
+            officer_users_count: officerUsers,
             admin_users_count: adminUsers,
             loan_contracts_count: contractsCount ?? 0,
             active_loan_contracts_count: activeLoanContracts,
@@ -352,7 +354,7 @@ Deno.serve(async (request) => {
         return jsonResponse({ success: false, message: 'สถานะไม่ถูกต้อง' }, 400);
       }
 
-      if (!['member', 'admin'].includes(role)) {
+      if (!['member', 'officer', 'admin'].includes(role)) {
         return jsonResponse({ success: false, message: 'สิทธิ์ผู้ใช้ไม่ถูกต้อง' }, 400);
       }
 

@@ -58,9 +58,9 @@ export function SystemOverviewPanel({
           <div className="metric-subtext">ยังคงค้าง {overview.active_loan_contracts_count} | ปิดแล้ว {overview.closed_loan_contracts_count}</div>
         </section>
         <section className="card metric-card">
-          <div className="metric-label">ผู้ดูแลระบบ</div>
-          <div className="metric-value">{overview.admin_users_count}</div>
-          <div className="metric-subtext">กำกับสิทธิ์ ดูแลข้อมูล และอนุมัติการใช้งานระบบ</div>
+          <div className="metric-label">บุคลากรระบบ</div>
+          <div className="metric-value">{overview.admin_users_count + overview.officer_users_count}</div>
+          <div className="metric-subtext">ผู้ดูแลระบบ {overview.admin_users_count} | เจ้าหน้าที่ {overview.officer_users_count}</div>
         </section>
       </div>
 

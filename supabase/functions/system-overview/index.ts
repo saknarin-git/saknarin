@@ -27,6 +27,7 @@ Deno.serve(async (request) => {
       { count: usersCount, error: usersCountError },
       { count: approvedUsersCount, error: approvedUsersCountError },
       { count: pendingUsersCount, error: pendingUsersCountError },
+      { count: officerUsersCount, error: officerUsersCountError },
       { count: adminUsersCount, error: adminUsersCountError },
       { count: loanContractsCount, error: loanContractsCountError },
       { data: loanRows, error: loanRowsError },
@@ -37,6 +38,7 @@ Deno.serve(async (request) => {
       adminClient.from('app_users').select('*', { count: 'exact', head: true }),
       adminClient.from('app_users').select('*', { count: 'exact', head: true }).eq('approval_status', 'approved'),
       adminClient.from('app_users').select('*', { count: 'exact', head: true }).eq('approval_status', 'pending'),
+      adminClient.from('app_users').select('*', { count: 'exact', head: true }).eq('role', 'officer'),
       adminClient.from('app_users').select('*', { count: 'exact', head: true }).eq('role', 'admin'),
       adminClient.from('loan_contracts').select('*', { count: 'exact', head: true }),
       adminClient.from('loan_contracts').select('loan_amount, outstanding_amount, status'),
@@ -49,6 +51,7 @@ Deno.serve(async (request) => {
       usersCountError ||
       approvedUsersCountError ||
       pendingUsersCountError ||
+      officerUsersCountError ||
       adminUsersCountError ||
       loanContractsCountError ||
       loanRowsError
@@ -59,6 +62,7 @@ Deno.serve(async (request) => {
         usersCountError ??
         approvedUsersCountError ??
         pendingUsersCountError ??
+        officerUsersCountError ??
         adminUsersCountError ??
         loanContractsCountError ??
         loanRowsError;
@@ -84,6 +88,7 @@ Deno.serve(async (request) => {
           users_count: usersCount ?? 0,
           approved_users_count: approvedUsersCount ?? 0,
           pending_users_count: pendingUsersCount ?? 0,
+          officer_users_count: officerUsersCount ?? 0,
           admin_users_count: adminUsersCount ?? 0,
           loan_contracts_count: loanContractsCount ?? 0,
           active_loan_contracts_count: activeLoanContracts,

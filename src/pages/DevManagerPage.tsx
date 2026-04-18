@@ -21,6 +21,7 @@ const defaultOverview: AdminOverview = {
   users_count: 0,
   approved_users_count: 0,
   pending_users_count: 0,
+  officer_users_count: 0,
   admin_users_count: 0,
   loan_contracts_count: 0,
   active_loan_contracts_count: 0,
@@ -86,7 +87,7 @@ export function DevManagerPage() {
     }
   }
 
-  async function handleApproval(userId: string, approvalStatus: 'approved' | 'rejected', role: 'member' | 'admin') {
+  async function handleApproval(userId: string, approvalStatus: 'approved' | 'rejected', role: 'member' | 'officer' | 'admin') {
     if (!session) {
       return;
     }
@@ -352,7 +353,7 @@ export function DevManagerPage() {
               </div>
               <div className="list-item">
                 <strong>จำนวนผู้ดูแลระบบ</strong>
-                <div className="muted">มีผู้ดูแลระบบ {overview.admin_users_count} คนที่สามารถดูแลข้อมูลส่วนกลาง</div>
+                <div className="muted">มีผู้ดูแลระบบ {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
               </div>
             </div>
           </section>
@@ -433,6 +434,13 @@ export function DevManagerPage() {
                     onClick={() => handleApproval(user.id, 'rejected', user.role)}
                   >
                     ปฏิเสธ
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => handleApproval(user.id, 'approved', 'officer')}
+                  >
+                    ตั้งเป็นเจ้าหน้าที่
                   </button>
                   <button
                     type="button"

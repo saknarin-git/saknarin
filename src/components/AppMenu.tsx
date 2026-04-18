@@ -32,6 +32,8 @@ export function AppMenu({ title }: AppMenuProps) {
   }
 
   const isAdmin = session.user.role === 'admin';
+  const isOfficer = session.user.role === 'officer';
+  const isStaff = isAdmin || isOfficer;
 
   return (
     <>
@@ -79,7 +81,7 @@ export function AppMenu({ title }: AppMenuProps) {
           <Link to="/workspace" className={`drawer-link ${location.pathname === '/workspace' ? 'drawer-link-active' : ''}`}>
             แดชบอร์ดผู้ใช้งาน
           </Link>
-          {isAdmin && (
+          {isStaff && (
             <>
               <Link to="/members" className={`drawer-link ${location.pathname === '/members' ? 'drawer-link-active' : ''}`}>
                 ทะเบียนสมาชิก
@@ -87,6 +89,10 @@ export function AppMenu({ title }: AppMenuProps) {
               <Link to="/loans" className={`drawer-link ${location.pathname === '/loans' ? 'drawer-link-active' : ''}`}>
                 สินเชื่อ
               </Link>
+            </>
+          )}
+          {isAdmin && (
+            <>
               <Link to="/devmanager" className={`drawer-link ${location.pathname === '/devmanager' ? 'drawer-link-active' : ''}`}>
                 DevManager
               </Link>

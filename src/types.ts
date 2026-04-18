@@ -1,6 +1,6 @@
 export type TitlePrefix = 'นาย' | 'นาง' | 'นางสาว' | 'เด็กชาย' | 'เด็กหญิง';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-export type UserRole = 'member' | 'admin';
+export type UserRole = 'member' | 'officer' | 'admin';
 
 export interface MemberRecord {
   member_no: string;
@@ -65,6 +65,7 @@ export interface AdminOverview {
   users_count: number;
   approved_users_count: number;
   pending_users_count: number;
+  officer_users_count: number;
   admin_users_count: number;
   loan_contracts_count: number;
   active_loan_contracts_count: number;

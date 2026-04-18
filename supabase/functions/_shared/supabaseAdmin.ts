@@ -57,7 +57,17 @@ export async function ensureUser(accessToken?: string) {
 export async function ensureAuthenticated(accessToken?: string) {
   const profile = await ensureUser(accessToken);
 
-  if (!profile || profile.role !== 'admin' || profile.approval_status !== 'approved') {
+  if (!profile || profile.approval_status !== 'approved') {
+    throw new Error('Forbidden');
+  }
+
+  return profile;
+}
+
+export async function ensureStaff(accessToken?: string) {
+  const profile = await ensureAuthenticated(accessToken);
+
+  if (!['admin', 'officer'].includes(profile.role)) {
     throw new Error('Forbidden');
   }
 

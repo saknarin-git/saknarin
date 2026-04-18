@@ -6,7 +6,7 @@ import { changePassword, updateProfile } from '../api/profileApi';
 import { fetchSystemOverview } from '../api/overviewApi';
 import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
-import type { AppSettings, ProfileUpdatePayload, TitlePrefix } from '../types';
+import type { AdminOverview, AppSettings, ProfileUpdatePayload, TitlePrefix, UserRole } from '../types';
 import { APP_GROUP_NAME } from '../constants/appBrand';
 
 const titleOptions: TitlePrefix[] = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
@@ -17,10 +17,39 @@ const defaultSettings: AppSettings = {
   allow_registration: true,
 };
 
+const defaultOverview: AdminOverview = {
+  members_count: 0,
+  active_members_count: 0,
+  inactive_members_count: 0,
+  users_count: 0,
+  approved_users_count: 0,
+  pending_users_count: 0,
+  officer_users_count: 0,
+  admin_users_count: 0,
+  loan_contracts_count: 0,
+  active_loan_contracts_count: 0,
+  closed_loan_contracts_count: 0,
+  total_loan_amount: 0,
+  total_outstanding_amount: 0,
+};
+
+function getRoleLabel(role: UserRole) {
+  if (role === 'admin') {
+    return 'DevManager / ผู้ดูแลระบบ';
+  }
+
+  if (role === 'officer') {
+    return 'เจ้าหน้าที่';
+  }
+
+  return 'สมาชิกทั่วไป';
+}
+
 export function UserWorkspacePage() {
   const { session, setSessionData } = useAuth();
   const accessToken = session?.access_token ?? '';
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
+  const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [form, setForm] = useState<ProfileUpdatePayload>({
     title: 'นาย',
     first_name: '',
@@ -61,13 +90,124 @@ export function UserWorkspacePage() {
     try {
       const response = await fetchSystemOverview(token);
       setSettings(response.data.settings);
+      setOverview(response.data.overview);
     } catch {
       setSettings(defaultSettings);
+      setOverview(defaultOverview);
     }
   }
 
   if (!session) {
     return null;
+  }
+
+  function renderRoleWidgets() {
+    if (session.user.role === 'admin') {
+      return (
+        <>
+          <div className="card role-widget-card role-widget-admin">
+            <h3 className="section-title">ศูนย์ควบคุม DevManager</h3>
+            <div className="dashboard-shortcuts">
+              <Link to="/devmanager" className="shortcut-card shortcut-link-card">
+                <strong>เปิด DevManager</strong>
+                <div className="muted">จัดการสิทธิ์ผู้ใช้ ตั้งค่าระบบ และนำเข้าฐานข้อมูล</div>
+              </Link>
+              <Link to="/members" className="shortcut-card shortcut-link-card">
+                <strong>ทะเบียนสมาชิก</strong>
+                <div className="muted">ดูและแก้ไขข้อมูลสมาชิกทั้งหมด {overview.members_count} ราย</div>
+              </Link>
+              <Link to="/loans" className="shortcut-card shortcut-link-card">
+                <strong>สินเชื่อ</strong>
+                <div className="muted">ติดตามสัญญาเงินกู้ {overview.loan_contracts_count} รายการ</div>
+              </Link>
+            </div>
+          </div>
+          <div className="card role-widget-card">
+            <h3 className="section-title">งานค้างสำคัญ</h3>
+            <div className="list">
+              <div className="list-item">
+                <strong>ผู้ใช้งานรออนุมัติ</strong>
+                <div className="muted">ยังมี {overview.pending_users_count} บัญชีที่รอการตรวจสอบจากผู้ดูแลระบบ</div>
+              </div>
+              <div className="list-item">
+                <strong>เจ้าหน้าที่ในระบบ</strong>
+                <div className="muted">มีเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลงานปฏิบัติการรายวัน</div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    if (session.user.role === 'officer') {
+      return (
+        <>
+          <div className="card role-widget-card role-widget-officer">
+            <h3 className="section-title">พื้นที่ทำงานของเจ้าหน้าที่</h3>
+            <div className="dashboard-shortcuts">
+              <Link to="/members" className="shortcut-card shortcut-link-card">
+                <strong>ตรวจทะเบียนสมาชิก</strong>
+                <div className="muted">สมาชิกใช้งานอยู่ {overview.active_members_count} ราย พร้อมตรวจข้อมูลเพิ่มเติม</div>
+              </Link>
+              <Link to="/loans" className="shortcut-card shortcut-link-card">
+                <strong>ติดตามสินเชื่อ</strong>
+                <div className="muted">สัญญาที่ยังคงค้าง {overview.active_loan_contracts_count} รายการ</div>
+              </Link>
+            </div>
+          </div>
+          <div className="card role-widget-card">
+            <h3 className="section-title">ภาพรวมงานปฏิบัติการ</h3>
+            <div className="list">
+              <div className="list-item">
+                <strong>สมาชิกที่ต้องติดตาม</strong>
+                <div className="muted">มีสมาชิกที่ปิดใช้งาน {overview.inactive_members_count} ราย ควรตรวจสอบความครบถ้วนของข้อมูล</div>
+              </div>
+              <div className="list-item">
+                <strong>สินเชื่อคงค้าง</strong>
+                <div className="muted">มีสัญญาที่ยังไม่ปิดบัญชี {overview.active_loan_contracts_count} รายการ</div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    return (
+      <>
+        <div className="card role-widget-card role-widget-member">
+          <h3 className="section-title">ศูนย์บริการสมาชิก</h3>
+          <div className="list">
+            <div className="list-item">
+              <strong>ประกาศจากระบบ</strong>
+              <div className="muted">{settings.notice || 'ยังไม่มีประกาศล่าสุดจากผู้ดูแลระบบ'}</div>
+            </div>
+            <div className="list-item">
+              <strong>สถานะบัญชี</strong>
+              <div className="muted">
+                {session.user.approval_status === 'approved'
+                  ? 'บัญชีของคุณได้รับอนุมัติแล้ว สามารถใช้งานระบบตามสิทธิ์ของสมาชิกได้'
+                  : session.user.approval_status === 'pending'
+                    ? 'บัญชียังอยู่ระหว่างการอนุมัติ กรุณารอการตรวจสอบจากผู้ดูแลระบบ'
+                    : 'บัญชีถูกปฏิเสธการใช้งาน กรุณาติดต่อผู้ดูแลระบบ'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="card role-widget-card">
+          <h3 className="section-title">ข้อมูลที่เข้าถึงได้</h3>
+          <div className="list">
+            <div className="list-item">
+              <strong>แดชบอร์ดภาพรวมระบบ</strong>
+              <div className="muted">คุณสามารถดูภาพรวมของกลุ่มได้จากหน้า ภาพรวมระบบ ตลอดเวลา</div>
+            </div>
+            <div className="list-item">
+              <strong>ข้อมูลส่วนตัวและรหัสผ่าน</strong>
+              <div className="muted">ใช้หน้านี้ในการแก้ไขชื่อ-สกุล และเปลี่ยนรหัสผ่านของตนเอง</div>
+            </div>
+          </div>
+        </div>
+      </>
+    );
   }
 
   const handleProfileSave = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -143,7 +283,7 @@ export function UserWorkspacePage() {
       <div className="grid-two">
         <div className="card">
           <p><strong>Username:</strong> {session.user.username}</p>
-          <p><strong>บทบาท:</strong> {session.user.role === 'admin' ? 'DevManager / ผู้ดูแลระบบ' : 'สมาชิกทั่วไป'}</p>
+          <p><strong>บทบาท:</strong> {getRoleLabel(session.user.role)}</p>
           <p><strong>ชื่อกลุ่ม:</strong> {settings.group_name || APP_GROUP_NAME}</p>
           <p><strong>สถานะบัญชี:</strong> <StatusBadge status={session.user.approval_status} /></p>
           <div className="notice">{settings.notice || 'ยังไม่มีประกาศจากผู้ดูแลระบบ'}</div>
@@ -160,6 +300,17 @@ export function UserWorkspacePage() {
               <div className="actions compact-actions">
                 <Link to="/devmanager" className="btn btn-primary">เปิด DevManager</Link>
                 <Link to="/members" className="btn btn-secondary">ทะเบียนสมาชิก</Link>
+                <Link to="/loans" className="btn btn-secondary">สินเชื่อ</Link>
+              </div>
+            </div>
+          ) : session.user.role === 'officer' ? (
+            <div className="list">
+              <div className="list-item">
+                <strong>เข้าถึงงานปฏิบัติการ</strong>
+                <div className="muted">คุณสามารถเข้าถึงทะเบียนสมาชิกและสินเชื่อเพื่อทำงานประจำวัน แต่ไม่เข้าถึงการตั้งค่า DevManager</div>
+              </div>
+              <div className="actions compact-actions">
+                <Link to="/members" className="btn btn-primary">ทะเบียนสมาชิก</Link>
                 <Link to="/loans" className="btn btn-secondary">สินเชื่อ</Link>
               </div>
             </div>
@@ -182,6 +333,8 @@ export function UserWorkspacePage() {
             </div>
           )}
         </div>
+
+        {renderRoleWidgets()}
 
         <div className="card">
           <h3 className="section-title">แก้ไขข้อมูลส่วนตัว</h3>

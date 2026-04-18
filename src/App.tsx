@@ -7,13 +7,14 @@ import { MemberRegistryPage } from './pages/MemberRegistryPage';
 import { LoanManagementPage } from './pages/LoanManagementPage';
 import { UserWorkspacePage } from './pages/UserWorkspacePage';
 import { useAuth } from './contexts/AuthContext';
+import type { UserRole } from './types';
 
 function ProtectedRoute({
   children,
-  adminOnly = false,
+  allowedRoles,
 }: {
   children: ReactElement;
-  adminOnly?: boolean;
+  allowedRoles?: UserRole[];
 }) {
   const { session } = useAuth();
 
@@ -21,7 +22,7 @@ function ProtectedRoute({
     return <Navigate to="/" replace />;
   }
 
-  if (adminOnly && session.user.role !== 'admin') {
+  if (allowedRoles && !allowedRoles.includes(session.user.role)) {
     return <Navigate to="/workspace" replace />;
   }
 
@@ -53,7 +54,7 @@ export default function App() {
       <Route
         path="/devmanager"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['admin']}>
             <DevManagerPage />
           </ProtectedRoute>
         }
@@ -61,7 +62,7 @@ export default function App() {
       <Route
         path="/members"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['admin', 'officer']}>
             <MemberRegistryPage />
           </ProtectedRoute>
         }
@@ -69,7 +70,7 @@ export default function App() {
       <Route
         path="/loans"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute allowedRoles={['admin', 'officer']}>
             <LoanManagementPage />
           </ProtectedRoute>
         }
