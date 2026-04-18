@@ -53,10 +53,22 @@ export interface AppSettings {
   allow_registration: boolean;
 }
 
+export interface ImportStats {
+  members_count: number;
+  loan_contracts_count: number;
+}
+
+export interface ImportResult {
+  total: number;
+  inserted: number;
+  updated: number;
+}
+
 export interface AdminPanelResponse {
   success: boolean;
   data: {
     users: AppUser[];
     settings: AppSettings;
+    import_stats: ImportStats;
   };
 }

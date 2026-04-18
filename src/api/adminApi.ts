@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import type { AdminPanelResponse, AppSettings, ApprovalStatus, UserRole } from '../types';
+import type { AdminPanelResponse, AppSettings, ApprovalStatus, ImportResult, UserRole } from '../types';
 
 export async function fetchAdminPanel(token: string) {
   return apiRequest<AdminPanelResponse>('admin-users', { method: 'GET' }, token);
@@ -27,6 +27,17 @@ export async function updateSettings(token: string, settings: AppSettings) {
     {
       method: 'PUT',
       body: JSON.stringify(settings),
+    },
+    token,
+  );
+}
+
+export async function importCsvData(token: string, importType: 'members' | 'loan-contracts', csvText: string) {
+  return apiRequest<{ success: boolean; message: string; data: ImportResult }>(
+    'admin-users',
+    {
+      method: 'POST',
+      body: JSON.stringify({ importType, csvText }),
     },
     token,
   );
