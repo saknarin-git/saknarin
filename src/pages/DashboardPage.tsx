@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { InputField } from '../components/InputField';
+import { AppMenu } from '../components/AppMenu';
 import { changePassword, updateProfile } from '../api/profileApi';
 import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
@@ -9,7 +9,7 @@ import type { ProfileUpdatePayload, TitlePrefix } from '../types';
 const titleOptions: TitlePrefix[] = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
 
 export function DashboardPage() {
-  const { session, logout, setSessionData } = useAuth();
+  const { session, setSessionData } = useAuth();
 
   const [form, setForm] = useState<ProfileUpdatePayload>({
     title: 'นาย',
@@ -103,27 +103,7 @@ export function DashboardPage() {
 
   return (
     <div className="page-shell">
-      <div className="topbar">
-        <h2>หน้าหลักผู้ใช้งาน</h2>
-        <div className="actions">
-          {session.user.role === 'admin' && (
-            <>
-              <Link to="/members" className="btn btn-secondary">
-                ทะเบียนสมาชิก
-              </Link>
-              <Link to="/loans" className="btn btn-secondary">
-                สินเชื่อ
-              </Link>
-              <Link to="/devmanager" className="btn btn-secondary">
-                ไปหน้า DevManager
-              </Link>
-            </>
-          )}
-          <button type="button" className="btn btn-danger" onClick={logout}>
-            ออกจากระบบ
-          </button>
-        </div>
-      </div>
+      <AppMenu title="หน้าหลักผู้ใช้งาน" />
 
       <div className="hero">
         <h1>ยินดีต้อนรับ {session.user.title}{session.user.first_name} {session.user.last_name}</h1>

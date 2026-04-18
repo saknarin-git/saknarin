@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { createMemberRecord, deleteMemberRecord, fetchMembers, updateMemberRecord } from '../api/adminApi';
+import { AppMenu } from '../components/AppMenu';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../contexts/AuthContext';
 import type { MemberRegistryRecord, PaginationMeta, TitlePrefix } from '../types';
@@ -26,7 +26,7 @@ const defaultForm: MemberFormState = {
 };
 
 export function MemberRegistryPage() {
-  const { session, logout } = useAuth();
+  const { session } = useAuth();
   const accessToken = session?.access_token ?? '';
   const [members, setMembers] = useState<MemberRegistryRecord[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, page_size: 20, total_pages: 1 });
@@ -163,14 +163,7 @@ export function MemberRegistryPage() {
 
   return (
     <div className="page-shell">
-      <div className="topbar">
-        <h2>ทะเบียนสมาชิก</h2>
-        <div className="actions">
-          <Link to="/dashboard" className="btn btn-secondary">กลับหน้าหลัก</Link>
-          <Link to="/loans" className="btn btn-secondary">ไปหน้า สินเชื่อ</Link>
-          <button type="button" className="btn btn-danger" onClick={logout}>ออกจากระบบ</button>
-        </div>
-      </div>
+      <AppMenu title="ทะเบียนสมาชิก" />
 
       <div className="hero">
         <h1>จัดการทะเบียนสมาชิก</h1>

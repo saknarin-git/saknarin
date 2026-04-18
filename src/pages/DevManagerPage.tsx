@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
+import { AppMenu } from '../components/AppMenu';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import type { AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats } from '../types';
@@ -13,7 +13,7 @@ const defaultSettings: AppSettings = {
 };
 
 export function DevManagerPage() {
-  const { session, logout } = useAuth();
+  const { session } = useAuth();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [importStats, setImportStats] = useState<ImportStats>({ members_count: 0, loan_contracts_count: 0 });
@@ -255,17 +255,7 @@ export function DevManagerPage() {
 
   return (
     <div className="page-shell">
-      <div className="topbar">
-        <h2>DevManager</h2>
-        <div className="actions">
-          <Link to="/dashboard" className="btn btn-secondary">
-            กลับหน้าหลัก
-          </Link>
-          <button type="button" className="btn btn-danger" onClick={logout}>
-            ออกจากระบบ
-          </button>
-        </div>
-      </div>
+      <AppMenu title="DevManager" />
 
       <div className="hero">
         <h1>จัดการระบบภายในเว็บแอพทั้งหมด</h1>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { createLoanRecord, deleteLoanRecord, fetchLoans, updateLoanRecord } from '../api/adminApi';
+import { AppMenu } from '../components/AppMenu';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../contexts/AuthContext';
 import type { LoanRegistryRecord, PaginationMeta, TitlePrefix } from '../types';
@@ -36,7 +36,7 @@ const defaultForm: LoanFormState = {
 };
 
 export function LoanManagementPage() {
-  const { session, logout } = useAuth();
+  const { session } = useAuth();
   const accessToken = session?.access_token ?? '';
   const [loans, setLoans] = useState<LoanRegistryRecord[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, page_size: 20, total_pages: 1 });
@@ -183,14 +183,7 @@ export function LoanManagementPage() {
 
   return (
     <div className="page-shell">
-      <div className="topbar">
-        <h2>สินเชื่อ</h2>
-        <div className="actions">
-          <Link to="/dashboard" className="btn btn-secondary">กลับหน้าหลัก</Link>
-          <Link to="/members" className="btn btn-secondary">ไปหน้า ทะเบียนสมาชิก</Link>
-          <button type="button" className="btn btn-danger" onClick={logout}>ออกจากระบบ</button>
-        </div>
-      </div>
+      <AppMenu title="สินเชื่อ" />
 
       <div className="hero">
         <h1>จัดการข้อมูลสินเชื่อ</h1>
