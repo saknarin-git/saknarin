@@ -121,7 +121,9 @@ export function DevManagerPage() {
       setMessage(
         preview.is_ready
           ? `ตรวจสอบไฟล์ ${fileName} เรียบร้อย พร้อมนำเข้า ${preview.row_count} รายการ`
-          : `ไฟล์ ${fileName} ยังไม่พร้อมนำเข้า กรุณาตรวจคอลัมน์ที่ขาดก่อน`,
+          : preview.missing_headers.length > 0
+            ? `ไฟล์ ${fileName} ยังไม่พร้อมนำเข้า กรุณาตรวจคอลัมน์ที่ขาดก่อน`
+            : `ไฟล์ ${fileName} พบข้อมูลไม่ถูกต้อง ${preview.invalid_row_count} แถว กรุณาแก้ไขก่อนนำเข้า`,
       );
     } catch (error) {
       const nextMessage = error instanceof Error ? error.message : 'ดูตัวอย่างข้อมูลไม่สำเร็จ';
@@ -171,8 +173,11 @@ export function DevManagerPage() {
           <div className="stat-chip">ไฟล์: {preview.file_name}</div>
           <div className="stat-chip">จำนวนรายการ: {preview.row_count}</div>
           <div className={`stat-chip ${preview.is_ready ? 'stat-chip-success' : 'stat-chip-error'}`}>
-            {preview.is_ready ? 'พร้อมนำเข้า' : 'คอลัมน์ยังไม่ครบ'}
+            {preview.is_ready ? 'พร้อมนำเข้า' : preview.missing_headers.length > 0 ? 'คอลัมน์ยังไม่ครบ' : 'ข้อมูลบางแถวไม่ถูกต้อง'}
           </div>
+          {!preview.is_ready && preview.invalid_row_count > 0 && (
+            <div className="stat-chip stat-chip-error">แถวที่ต้องแก้ไข: {preview.invalid_row_count}</div>
+          )}
         </div>
         <div className="preview-meta">
           <div>
@@ -200,6 +205,11 @@ export function DevManagerPage() {
         {preview.missing_headers.length > 0 && (
           <div className="alert-error">ยังขาดคอลัมน์: {preview.missing_headers.join(', ')}</div>
         )}
+        {preview.issues.length > 0 && (
+          <div className="alert-error">
+            พบข้อมูลที่ต้องแก้ไข {preview.invalid_row_count} แถวก่อนนำเข้า
+          </div>
+        )}
         <div className="preview-table-wrap">
           <table className="preview-table">
             <thead>
@@ -222,6 +232,22 @@ export function DevManagerPage() {
         </div>
         {preview.row_count > preview.sample_rows.length && (
           <div className="muted">แสดงตัวอย่าง {preview.sample_rows.length} แถวแรกจากทั้งหมด {preview.row_count} รายการ</div>
+        )}
+        {preview.issues.length > 0 && (
+          <div className="preview-issues">
+            <strong>รายการแถวที่มีปัญหา</strong>
+            <div className="list preview-issues-list">
+              {preview.issues.slice(0, 10).map((issue) => (
+                <div key={`${preview.file_name}-issue-${issue.row_number}`} className="list-item preview-issue-item">
+                  <strong>แถว {issue.row_number}</strong>
+                  <div className="muted">{issue.messages.join(', ')}</div>
+                </div>
+              ))}
+            </div>
+            {preview.issues.length > 10 && (
+              <div className="muted">แสดง 10 แถวแรกจากทั้งหมด {preview.issues.length} แถวที่ต้องแก้ไข</div>
+            )}
+          </div>
         )}
       </div>
     );

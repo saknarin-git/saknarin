@@ -1,4 +1,4 @@
-import type { CsvImportType, CsvPreviewSummary } from '../types';
+import type { CsvImportType, CsvPreviewIssue, CsvPreviewSummary } from '../types';
 
 const MEMBER_HEADERS = ['เลขที่สมาชิก', 'คำนำหน้าชื่อ', 'ชื่อ', 'สกุล', 'สถานะ'];
 const LOAN_HEADERS = [
@@ -102,6 +102,95 @@ function findMatchingHeader(headers: string[], expectedHeader: string) {
   return headers.find((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
+function toMappedRow(headers: string[], requiredHeaders: string[], row: string[]) {
+  const mappedRow: Record<string, string> = {};
+
+  requiredHeaders.forEach((header) => {
+    const actualHeader = findMatchingHeader(headers, header);
+    const columnIndex = actualHeader ? headers.indexOf(actualHeader) : -1;
+    mappedRow[header] = columnIndex >= 0 ? String(row[columnIndex] ?? '').trim() : '';
+  });
+
+  return mappedRow;
+}
+
+function isValidDecimal(value: string) {
+  if (!value.trim()) {
+    return false;
+  }
+
+  const normalized = value.replace(/,/g, '').trim();
+  return !Number.isNaN(Number(normalized));
+}
+
+function isValidDate(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return true;
+  }
+
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) {
+    return true;
+  }
+
+  return false;
+}
+
+function validateMembersRow(row: Record<string, string>) {
+  const messages: string[] = [];
+
+  if (!row['เลขที่สมาชิก']) messages.push('เลขที่สมาชิกว่าง');
+  if (!row['คำนำหน้าชื่อ']) messages.push('คำนำหน้าชื่อว่าง');
+  if (!row['ชื่อ']) messages.push('ชื่อว่าง');
+  if (!row['สกุล']) messages.push('สกุลว่าง');
+
+  return messages;
+}
+
+function validateLoanRow(row: Record<string, string>) {
+  const messages: string[] = [];
+
+  if (!row['เลขที่สมาชิก']) messages.push('เลขที่สมาชิกว่าง');
+  if (!row['เลขที่สัญญา']) messages.push('เลขที่สัญญาว่าง');
+  if (!row['คำนำหน้าชื่อ']) messages.push('คำนำหน้าชื่อว่าง');
+  if (!row['ชื่อ']) messages.push('ชื่อว่าง');
+  if (!row['สกุล']) messages.push('สกุลว่าง');
+  if (!row['ผู้ค้ำประกันคนที่ 1']) messages.push('ผู้ค้ำประกันคนที่ 1 ว่าง');
+
+  if (!isValidDecimal(row['ยอดเงินกู้'])) messages.push('ยอดเงินกู้ไม่ใช่ตัวเลข');
+  if (!isValidDecimal(row['ยอดคงค้าง'])) messages.push('ยอดคงค้างไม่ใช่ตัวเลข');
+  if (!isValidDate(row['วันที่สร้างสัญญา'])) messages.push('วันที่สร้างสัญญาไม่ถูกต้อง');
+
+  return messages;
+}
+
+function validateRows(
+  importType: CsvImportType,
+  headers: string[],
+  requiredHeaders: string[],
+  rows: string[][],
+) {
+  const issues: CsvPreviewIssue[] = [];
+
+  rows.forEach((row, index) => {
+    const mappedRow = toMappedRow(headers, requiredHeaders, row);
+    const messages = importType === 'members' ? validateMembersRow(mappedRow) : validateLoanRow(mappedRow);
+
+    if (messages.length > 0) {
+      issues.push({
+        row_number: index + 2,
+        messages,
+      });
+    }
+  });
+
+  return issues;
+}
+
 export function buildCsvPreview(csvText: string, importType: CsvImportType, fileName: string) : CsvPreviewSummary {
   const { headers, rows } = parseCsv(csvText);
   const requiredHeaders = getRequiredHeaders(importType);
@@ -109,18 +198,9 @@ export function buildCsvPreview(csvText: string, importType: CsvImportType, file
     .map((header) => findMatchingHeader(headers, header))
     .filter((header): header is string => Boolean(header));
   const missingHeaders = requiredHeaders.filter((header) => !findMatchingHeader(headers, header));
+  const issues = missingHeaders.length === 0 ? validateRows(importType, headers, requiredHeaders, rows) : [];
 
-  const sampleRows = rows.slice(0, 5).map((row) => {
-    const mappedRow: Record<string, string> = {};
-
-    requiredHeaders.forEach((header) => {
-      const actualHeader = findMatchingHeader(headers, header);
-      const columnIndex = actualHeader ? headers.indexOf(actualHeader) : -1;
-      mappedRow[header] = columnIndex >= 0 ? String(row[columnIndex] ?? '').trim() : '';
-    });
-
-    return mappedRow;
-  });
+  const sampleRows = rows.slice(0, 5).map((row) => toMappedRow(headers, requiredHeaders, row));
 
   return {
     file_name: fileName,
@@ -130,6 +210,8 @@ export function buildCsvPreview(csvText: string, importType: CsvImportType, file
     missing_headers: missingHeaders,
     row_count: rows.length,
     sample_rows: sampleRows,
-    is_ready: missingHeaders.length === 0 && rows.length > 0,
+    issues,
+    invalid_row_count: issues.length,
+    is_ready: missingHeaders.length === 0 && rows.length > 0 && issues.length === 0,
   };
 }

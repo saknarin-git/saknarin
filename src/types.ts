@@ -66,6 +66,11 @@ export interface ImportResult {
 
 export type CsvImportType = 'members' | 'loan-contracts';
 
+export interface CsvPreviewIssue {
+  row_number: number;
+  messages: string[];
+}
+
 export interface CsvPreviewSummary {
   file_name: string;
   required_headers: string[];
@@ -74,6 +79,8 @@ export interface CsvPreviewSummary {
   missing_headers: string[];
   row_count: number;
   sample_rows: Array<Record<string, string>>;
+  issues: CsvPreviewIssue[];
+  invalid_row_count: number;
   is_ready: boolean;
 }
 

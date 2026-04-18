@@ -281,6 +281,19 @@ textarea {
   border-bottom: 0;
 }
 
+.preview-issues {
+  margin-top: 14px;
+}
+
+.preview-issues-list {
+  margin-top: 10px;
+}
+
+.preview-issue-item {
+  background: #fff8f8;
+  border-color: #f1d0d0;
+}
+
 @media (max-width: 640px) {
   .page-shell {
     padding: 14px;
