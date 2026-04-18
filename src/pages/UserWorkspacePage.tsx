@@ -145,6 +145,10 @@ export function UserWorkspacePage() {
           <div className="card role-widget-card role-widget-officer">
             <h3 className="section-title">พื้นที่ทำงานของเจ้าหน้าที่</h3>
             <div className="dashboard-shortcuts">
+              <Link to="/officer" className="shortcut-card shortcut-link-card">
+                <strong>เปิดศูนย์งานเจ้าหน้าที่</strong>
+                <div className="muted">workflow งานประจำวันและภาพรวมงานปฏิบัติการในหน้าเดียว</div>
+              </Link>
               <Link to="/members" className="shortcut-card shortcut-link-card">
                 <strong>ตรวจทะเบียนสมาชิก</strong>
                 <div className="muted">สมาชิกใช้งานอยู่ {overview.active_members_count} ราย พร้อมตรวจข้อมูลเพิ่มเติม</div>
@@ -310,7 +314,8 @@ export function UserWorkspacePage() {
                 <div className="muted">คุณสามารถเข้าถึงทะเบียนสมาชิกและสินเชื่อเพื่อทำงานประจำวัน แต่ไม่เข้าถึงการตั้งค่า DevManager</div>
               </div>
               <div className="actions compact-actions">
-                <Link to="/members" className="btn btn-primary">ทะเบียนสมาชิก</Link>
+                <Link to="/officer" className="btn btn-primary">ศูนย์งานเจ้าหน้าที่</Link>
+                <Link to="/members" className="btn btn-secondary">ทะเบียนสมาชิก</Link>
                 <Link to="/loans" className="btn btn-secondary">สินเชื่อ</Link>
               </div>
             </div>

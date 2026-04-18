@@ -83,6 +83,9 @@ export function AppMenu({ title }: AppMenuProps) {
           </Link>
           {isStaff && (
             <>
+              <Link to="/officer" className={`drawer-link ${location.pathname === '/officer' ? 'drawer-link-active' : ''}`}>
+                ศูนย์งานเจ้าหน้าที่
+              </Link>
               <Link to="/members" className={`drawer-link ${location.pathname === '/members' ? 'drawer-link-active' : ''}`}>
                 ทะเบียนสมาชิก
               </Link>

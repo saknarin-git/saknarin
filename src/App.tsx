@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DevManagerPage } from './pages/DevManagerPage';
 import { MemberRegistryPage } from './pages/MemberRegistryPage';
 import { LoanManagementPage } from './pages/LoanManagementPage';
+import { OfficerWorkspacePage } from './pages/OfficerWorkspacePage';
 import { UserWorkspacePage } from './pages/UserWorkspacePage';
 import { useAuth } from './contexts/AuthContext';
 import type { UserRole } from './types';
@@ -48,6 +49,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <UserWorkspacePage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/officer"
+        element={
+          <ProtectedRoute allowedRoles={['admin', 'officer']}>
+            <OfficerWorkspacePage />
           </ProtectedRoute>
         }
       />
