@@ -12,5 +12,8 @@ verify_jwt = false
 [functions.bootstrap-admin]
 verify_jwt = false
 
+[functions.user-profile]
+verify_jwt = true
+
 [functions.admin-users]
 verify_jwt = true

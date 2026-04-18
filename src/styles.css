@@ -136,6 +136,20 @@ textarea {
   margin: 10px 0;
 }
 
+.alert-error {
+  border-left: 4px solid #d90429;
+  background: #fff0f1;
+  color: #8d1127;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin: 10px 0;
+}
+
+.section-title {
+  margin-top: 0;
+  margin-bottom: 14px;
+}
+
 .muted {
   color: #557c65;
 }

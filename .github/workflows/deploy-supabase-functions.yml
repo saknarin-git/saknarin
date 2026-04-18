@@ -49,5 +49,7 @@ jobs:
           supabase functions deploy auth-login --project-ref "$PROJECT_REF" --no-verify-jwt
           supabase functions deploy bootstrap-admin --project-ref "$PROJECT_REF" --no-verify-jwt
 
-      - name: Deploy protected admin function
-        run: supabase functions deploy admin-users --project-ref "$PROJECT_REF"
+      - name: Deploy protected functions
+        run: |
+          supabase functions deploy user-profile --project-ref "$PROJECT_REF"
+          supabase functions deploy admin-users --project-ref "$PROJECT_REF"

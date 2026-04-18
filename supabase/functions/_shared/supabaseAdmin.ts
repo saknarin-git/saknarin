@@ -26,7 +26,7 @@ export function toAuthEmail(username: string) {
   return `${username.trim().toLowerCase()}@saknarin.local`;
 }
 
-export async function ensureAdmin(accessToken?: string) {
+export async function ensureAuthenticated(accessToken?: string) {
   if (!accessToken) {
     throw new Error('Unauthorized');
   }
@@ -48,6 +48,16 @@ export async function ensureAdmin(accessToken?: string) {
     .single();
 
   if (profileError || !profile || profile.role !== 'admin' || profile.approval_status !== 'approved') {
+    throw new Error('Forbidden');
+  }
+
+  return profile;
+}
+
+export async function ensureAdmin(accessToken?: string) {
+  const profile = await ensureAuthenticated(accessToken);
+
+  if (profile.role !== 'admin' || profile.approval_status !== 'approved') {
     throw new Error('Forbidden');
   }
 

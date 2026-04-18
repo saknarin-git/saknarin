@@ -29,6 +29,12 @@ export interface AppUser {
   approval_status: ApprovalStatus;
 }
 
+export interface ProfileUpdatePayload {
+  title: TitlePrefix;
+  first_name: string;
+  last_name: string;
+}
+
 export interface SessionData {
   access_token: string;
   refresh_token: string;
