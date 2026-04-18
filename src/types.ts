@@ -58,6 +58,21 @@ export interface ImportStats {
   loan_contracts_count: number;
 }
 
+export interface AdminOverview {
+  members_count: number;
+  active_members_count: number;
+  inactive_members_count: number;
+  users_count: number;
+  approved_users_count: number;
+  pending_users_count: number;
+  admin_users_count: number;
+  loan_contracts_count: number;
+  active_loan_contracts_count: number;
+  closed_loan_contracts_count: number;
+  total_loan_amount: number;
+  total_outstanding_amount: number;
+}
+
 export interface MemberRegistryRecord {
   member_no: string;
   title: TitlePrefix;
@@ -126,5 +141,6 @@ export interface AdminPanelResponse {
     users: AppUser[];
     settings: AppSettings;
     import_stats: ImportStats;
+    overview: AdminOverview;
   };
 }

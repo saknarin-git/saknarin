@@ -9,6 +9,12 @@ interface ParsedCsv {
   rows: string[][];
 }
 
+interface LoanOverviewRow {
+  loan_amount: number | null;
+  outstanding_amount: number | null;
+  status: string | null;
+}
+
 function normalizeHeader(value: string) {
   return value.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[\s_\-()/]+/g, '');
 }
@@ -258,7 +264,9 @@ Deno.serve(async (request) => {
         { data: users, error: usersError },
         { data: settings, error: settingsError },
         { count: membersCount, error: membersCountError },
+        { count: activeMembersCount, error: activeMembersCountError },
         { count: contractsCount, error: contractsCountError },
+        { data: loanRows, error: loanRowsError },
       ] = await Promise.all([
         adminClient
           .from('app_users')
@@ -266,21 +274,50 @@ Deno.serve(async (request) => {
           .order('created_at', { ascending: false }),
         adminClient.from('app_settings').select('group_name, notice, allow_registration').eq('id', 1).single(),
         adminClient.from('members').select('*', { count: 'exact', head: true }),
+        adminClient.from('members').select('*', { count: 'exact', head: true }).eq('active', true),
         adminClient.from('loan_contracts').select('*', { count: 'exact', head: true }),
+        adminClient.from('loan_contracts').select('loan_amount, outstanding_amount, status'),
       ]);
 
-      if (usersError || settingsError || membersCountError || contractsCountError) {
-        throw usersError ?? settingsError ?? membersCountError ?? contractsCountError;
+      if (usersError || settingsError || membersCountError || activeMembersCountError || contractsCountError || loanRowsError) {
+        throw usersError ?? settingsError ?? membersCountError ?? activeMembersCountError ?? contractsCountError ?? loanRowsError;
       }
+
+      const usersList = users ?? [];
+      const pendingUsers = usersList.filter((user) => user.approval_status === 'pending').length;
+      const approvedUsers = usersList.filter((user) => user.approval_status === 'approved').length;
+      const adminUsers = usersList.filter((user) => user.role === 'admin').length;
+      const loans = (loanRows ?? []) as LoanOverviewRow[];
+      const totalLoanAmount = loans.reduce((sum, loan) => sum + Number(loan.loan_amount ?? 0), 0);
+      const totalOutstandingAmount = loans.reduce((sum, loan) => sum + Number(loan.outstanding_amount ?? 0), 0);
+      const activeLoanContracts = loans.filter((loan) => Number(loan.outstanding_amount ?? 0) > 0).length;
+      const closedLoanContracts = loans.filter((loan) => {
+        const normalizedStatus = String(loan.status ?? '').trim().toLowerCase();
+        return normalizedStatus.includes('ปิด') || normalizedStatus.includes('closed') || Number(loan.outstanding_amount ?? 0) <= 0;
+      }).length;
 
       return jsonResponse({
         success: true,
         data: {
-          users: users ?? [],
+          users: usersList,
           settings,
           import_stats: {
             members_count: membersCount ?? 0,
             loan_contracts_count: contractsCount ?? 0,
+          },
+          overview: {
+            members_count: membersCount ?? 0,
+            active_members_count: activeMembersCount ?? 0,
+            inactive_members_count: Math.max((membersCount ?? 0) - (activeMembersCount ?? 0), 0),
+            users_count: usersList.length,
+            approved_users_count: approvedUsers,
+            pending_users_count: pendingUsers,
+            admin_users_count: adminUsers,
+            loan_contracts_count: contractsCount ?? 0,
+            active_loan_contracts_count: activeLoanContracts,
+            closed_loan_contracts_count: closedLoanContracts,
+            total_loan_amount: totalLoanAmount,
+            total_outstanding_amount: totalOutstandingAmount,
           },
         },
       });
