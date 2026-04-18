@@ -3,6 +3,8 @@ import type { ReactElement } from 'react';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { DevManagerPage } from './pages/DevManagerPage';
+import { MemberRegistryPage } from './pages/MemberRegistryPage';
+import { LoanManagementPage } from './pages/LoanManagementPage';
 import { useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({
@@ -44,6 +46,22 @@ export default function App() {
         element={
           <ProtectedRoute adminOnly>
             <DevManagerPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/members"
+        element={
+          <ProtectedRoute adminOnly>
+            <MemberRegistryPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/loans"
+        element={
+          <ProtectedRoute adminOnly>
+            <LoanManagementPage />
           </ProtectedRoute>
         }
       />

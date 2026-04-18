@@ -53,3 +53,4 @@ jobs:
         run: |
           supabase functions deploy user-profile --project-ref "$PROJECT_REF" --no-verify-jwt
           supabase functions deploy admin-users --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy admin-records --project-ref "$PROJECT_REF" --no-verify-jwt

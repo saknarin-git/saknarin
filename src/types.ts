@@ -58,6 +58,35 @@ export interface ImportStats {
   loan_contracts_count: number;
 }
 
+export interface MemberRegistryRecord {
+  member_no: string;
+  title: TitlePrefix;
+  first_name: string;
+  last_name: string;
+  legacy_status: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+  linked_users: number;
+  loan_contracts: number;
+}
+
+export interface LoanRegistryRecord {
+  contract_no: string;
+  member_no: string;
+  title: TitlePrefix;
+  first_name: string;
+  last_name: string;
+  loan_amount: number;
+  outstanding_amount: number;
+  status: string | null;
+  contract_date: string | null;
+  guarantor_1: string;
+  guarantor_2: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ImportResult {
   total: number;
   inserted: number;

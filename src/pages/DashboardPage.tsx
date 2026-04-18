@@ -107,9 +107,17 @@ export function DashboardPage() {
         <h2>หน้าหลักผู้ใช้งาน</h2>
         <div className="actions">
           {session.user.role === 'admin' && (
-            <Link to="/devmanager" className="btn btn-secondary">
-              ไปหน้า DevManager
-            </Link>
+            <>
+              <Link to="/members" className="btn btn-secondary">
+                ทะเบียนสมาชิก
+              </Link>
+              <Link to="/loans" className="btn btn-secondary">
+                สินเชื่อ
+              </Link>
+              <Link to="/devmanager" className="btn btn-secondary">
+                ไปหน้า DevManager
+              </Link>
+            </>
           )}
           <button type="button" className="btn btn-danger" onClick={logout}>
             ออกจากระบบ
