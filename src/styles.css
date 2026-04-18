@@ -71,6 +71,8 @@ textarea {
   background: rgba(19, 42, 19, 0.28);
   border: 0;
   z-index: 30;
+  opacity: 0;
+  animation: menu-backdrop-fade 0.24s ease forwards;
 }
 
 .app-drawer {
@@ -79,12 +81,15 @@ textarea {
   left: 0;
   bottom: 0;
   width: min(320px, calc(100vw - 24px));
-  background: #fbfffb;
+  background:
+    radial-gradient(circle at top left, rgba(216, 243, 220, 0.95), rgba(251, 255, 251, 0) 35%),
+    linear-gradient(180deg, #fbfffb 0%, #f4fbf4 100%);
   border-right: 1px solid #d8ead8;
   box-shadow: 16px 0 40px rgba(27, 67, 50, 0.16);
   padding: 24px 18px;
   transform: translateX(-105%);
-  transition: transform 0.2s ease;
+  opacity: 0;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.22s ease;
   z-index: 40;
   display: flex;
   flex-direction: column;
@@ -92,6 +97,54 @@ textarea {
 
 .app-drawer-open {
   transform: translateX(0);
+  opacity: 1;
+}
+
+.drawer-brand {
+  display: grid;
+  grid-template-columns: 56px 1fr;
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 18px;
+  padding: 16px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+  color: white;
+  box-shadow: 0 14px 30px rgba(27, 67, 50, 0.2);
+}
+
+.drawer-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.16);
+  font-size: 1.6rem;
+  font-weight: 700;
+}
+
+.drawer-brand-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.drawer-brand-copy strong {
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.drawer-brand-kicker {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.82;
+}
+
+.drawer-brand-tagline {
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .app-drawer-header {
@@ -100,6 +153,11 @@ textarea {
   align-items: flex-start;
   gap: 12px;
   margin-bottom: 22px;
+  padding: 0 2px;
+}
+
+.drawer-close {
+  padding-inline: 14px;
 }
 
 .drawer-nav {
@@ -112,14 +170,24 @@ textarea {
   display: block;
   text-decoration: none;
   color: #1b4332;
-  background: #edf7ed;
+  background: rgba(237, 247, 237, 0.88);
   border-radius: 14px;
   padding: 12px 14px;
   font-weight: 600;
+  border: 1px solid transparent;
+  transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.drawer-link:hover {
+  transform: translateX(4px);
+  background: #eef8ef;
+  border-color: #cfe3cf;
+  box-shadow: 0 10px 22px rgba(45, 106, 79, 0.08);
 }
 
 .drawer-link-active {
   background: #d8f3dc;
+  border-color: #95d5b2;
 }
 
 .drawer-footer {
@@ -129,6 +197,16 @@ textarea {
 
 .drawer-logout {
   width: 100%;
+}
+
+@keyframes menu-backdrop-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .hero {

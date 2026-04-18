@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { APP_GROUP_NAME, APP_GROUP_TAGLINE } from '../constants/appBrand';
 import { useAuth } from '../contexts/AuthContext';
 
 interface AppMenuProps {
@@ -52,12 +53,21 @@ export function AppMenu({ title }: AppMenuProps) {
       {open && <button type="button" className="menu-backdrop" aria-label="ปิดเมนู" onClick={() => setOpen(false)} />}
 
       <aside className={`app-drawer ${open ? 'app-drawer-open' : ''}`} aria-hidden={!open}>
+        <div className="drawer-brand">
+          <div className="drawer-brand-mark" aria-hidden="true">ส</div>
+          <div className="drawer-brand-copy">
+            <div className="drawer-brand-kicker">เมนูหลัก</div>
+            <strong>{APP_GROUP_NAME}</strong>
+            <div className="drawer-brand-tagline">{APP_GROUP_TAGLINE}</div>
+          </div>
+        </div>
+
         <div className="app-drawer-header">
           <div>
             <strong>{session.user.title}{session.user.first_name} {session.user.last_name}</strong>
             <div className="muted">สมาชิกเลขที่ {session.user.member_no}</div>
           </div>
-          <button type="button" className="btn btn-secondary" onClick={() => setOpen(false)}>
+          <button type="button" className="btn btn-secondary drawer-close" onClick={() => setOpen(false)}>
             ปิด
           </button>
         </div>

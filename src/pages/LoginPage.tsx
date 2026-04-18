@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { loginUser, registerUser, searchMembers } from '../api/authApi';
 import { InputField } from '../components/InputField';
+import { APP_GROUP_NAME } from '../constants/appBrand';
 import { useAuth } from '../contexts/AuthContext';
 import type { MemberRecord, RegisterPayload, TitlePrefix } from '../types';
 
@@ -108,7 +109,7 @@ export function LoginPage() {
   return (
     <div className="page-shell">
       <div className="hero">
-        <h1>กลุ่มออมทรัพย์เพื่อการผลิต บ้านพิตำ</h1>
+        <h1>{APP_GROUP_NAME}</h1>
         <p>ระบบสมัครสมาชิก เข้าสู่ระบบ และอนุมัติผู้ใช้งานผ่านหน้า DevManager</p>
       </div>
 
