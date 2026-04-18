@@ -64,6 +64,19 @@ export interface ImportResult {
   updated: number;
 }
 
+export type CsvImportType = 'members' | 'loan-contracts';
+
+export interface CsvPreviewSummary {
+  file_name: string;
+  required_headers: string[];
+  headers: string[];
+  matched_headers: string[];
+  missing_headers: string[];
+  row_count: number;
+  sample_rows: Array<Record<string, string>>;
+  is_ready: boolean;
+}
+
 export interface AdminPanelResponse {
   success: boolean;
   data: {

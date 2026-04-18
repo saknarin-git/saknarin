@@ -3,7 +3,8 @@ import { Link } from 'react-router-dom';
 import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
-import type { AppSettings, AppUser, ImportStats } from '../types';
+import type { AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats } from '../types';
+import { buildCsvPreview } from '../utils/csvPreview';
 
 const defaultSettings: AppSettings = {
   group_name: 'กลุ่มออมทรัพย์เพื่อการผลิต บ้านพิตำ',
@@ -20,8 +21,10 @@ export function DevManagerPage() {
   const [loading, setLoading] = useState(true);
   const [memberCsvText, setMemberCsvText] = useState('');
   const [memberFileName, setMemberFileName] = useState('');
+  const [memberPreview, setMemberPreview] = useState<CsvPreviewSummary | null>(null);
   const [loanCsvText, setLoanCsvText] = useState('');
   const [loanFileName, setLoanFileName] = useState('');
+  const [loanPreview, setLoanPreview] = useState<CsvPreviewSummary | null>(null);
   const [importingMembers, setImportingMembers] = useState(false);
   const [importingLoans, setImportingLoans] = useState(false);
 
@@ -82,7 +85,7 @@ export function DevManagerPage() {
 
   async function handleFileSelection(
     event: React.ChangeEvent<HTMLInputElement>,
-    target: 'members' | 'loan-contracts',
+    target: CsvImportType,
   ) {
     const file = event.target.files?.[0];
     if (!file) {
@@ -94,20 +97,56 @@ export function DevManagerPage() {
     if (target === 'members') {
       setMemberCsvText(text);
       setMemberFileName(file.name);
+      setMemberPreview(null);
       return;
     }
 
     setLoanCsvText(text);
     setLoanFileName(file.name);
+    setLoanPreview(null);
   }
 
-  async function handleImport(importType: 'members' | 'loan-contracts') {
+  function handlePreview(importType: CsvImportType) {
+    const csvText = importType === 'members' ? memberCsvText : loanCsvText;
+    const fileName = importType === 'members' ? memberFileName : loanFileName;
+
+    try {
+      const preview = buildCsvPreview(csvText, importType, fileName);
+      if (importType === 'members') {
+        setMemberPreview(preview);
+      } else {
+        setLoanPreview(preview);
+      }
+
+      setMessage(
+        preview.is_ready
+          ? `ตรวจสอบไฟล์ ${fileName} เรียบร้อย พร้อมนำเข้า ${preview.row_count} รายการ`
+          : `ไฟล์ ${fileName} ยังไม่พร้อมนำเข้า กรุณาตรวจคอลัมน์ที่ขาดก่อน`,
+      );
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : 'ดูตัวอย่างข้อมูลไม่สำเร็จ';
+      setMessage(nextMessage);
+      if (importType === 'members') {
+        setMemberPreview(null);
+      } else {
+        setLoanPreview(null);
+      }
+    }
+  }
+
+  async function handleImport(importType: CsvImportType) {
     if (!session) {
       return;
     }
 
     const csvText = importType === 'members' ? memberCsvText : loanCsvText;
     const setLoadingState = importType === 'members' ? setImportingMembers : setImportingLoans;
+    const preview = importType === 'members' ? memberPreview : loanPreview;
+
+    if (!preview?.is_ready) {
+      setMessage('กรุณากดดูตัวอย่างข้อมูลและตรวจสอบให้ผ่านก่อนนำเข้า');
+      return;
+    }
 
     try {
       setLoadingState(true);
@@ -119,6 +158,73 @@ export function DevManagerPage() {
     } finally {
       setLoadingState(false);
     }
+  }
+
+  function renderPreview(preview: CsvPreviewSummary | null) {
+    if (!preview) {
+      return null;
+    }
+
+    return (
+      <div className="preview-panel">
+        <div className="stats-row preview-summary-row">
+          <div className="stat-chip">ไฟล์: {preview.file_name}</div>
+          <div className="stat-chip">จำนวนรายการ: {preview.row_count}</div>
+          <div className={`stat-chip ${preview.is_ready ? 'stat-chip-success' : 'stat-chip-error'}`}>
+            {preview.is_ready ? 'พร้อมนำเข้า' : 'คอลัมน์ยังไม่ครบ'}
+          </div>
+        </div>
+        <div className="preview-meta">
+          <div>
+            <strong>คอลัมน์ที่พบ</strong>
+            <div className="preview-tags">
+              {preview.headers.map((header) => (
+                <span key={header} className="preview-tag">{header}</span>
+              ))}
+            </div>
+          </div>
+          <div>
+            <strong>คอลัมน์ที่ต้องใช้</strong>
+            <div className="preview-tags">
+              {preview.required_headers.map((header) => (
+                <span
+                  key={header}
+                  className={`preview-tag ${preview.missing_headers.includes(header) ? 'preview-tag-error' : 'preview-tag-success'}`}
+                >
+                  {header}
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        {preview.missing_headers.length > 0 && (
+          <div className="alert-error">ยังขาดคอลัมน์: {preview.missing_headers.join(', ')}</div>
+        )}
+        <div className="preview-table-wrap">
+          <table className="preview-table">
+            <thead>
+              <tr>
+                {preview.required_headers.map((header) => (
+                  <th key={header}>{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {preview.sample_rows.map((row, index) => (
+                <tr key={`${preview.file_name}-${index + 1}`}>
+                  {preview.required_headers.map((header) => (
+                    <td key={`${header}-${index + 1}`}>{row[header] || '-'}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {preview.row_count > preview.sample_rows.length && (
+          <div className="muted">แสดงตัวอย่าง {preview.sample_rows.length} แถวแรกจากทั้งหมด {preview.row_count} รายการ</div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -240,13 +346,22 @@ export function DevManagerPage() {
           <div className="actions">
             <button
               type="button"
+              className="btn btn-secondary"
+              disabled={!memberCsvText}
+              onClick={() => handlePreview('members')}
+            >
+              ดูตัวอย่างข้อมูลสมาชิก
+            </button>
+            <button
+              type="button"
               className="btn btn-primary"
-              disabled={!memberCsvText || importingMembers}
+              disabled={!memberCsvText || importingMembers || !memberPreview?.is_ready}
               onClick={() => void handleImport('members')}
             >
               {importingMembers ? 'กำลังนำเข้าฐานข้อมูลสมาชิก...' : 'นำเข้าฐานข้อมูลสมาชิก'}
             </button>
           </div>
+          {renderPreview(memberPreview)}
         </section>
 
         <section className="card">
@@ -263,13 +378,22 @@ export function DevManagerPage() {
           <div className="actions">
             <button
               type="button"
+              className="btn btn-secondary"
+              disabled={!loanCsvText}
+              onClick={() => handlePreview('loan-contracts')}
+            >
+              ดูตัวอย่างสัญญาเงินกู้
+            </button>
+            <button
+              type="button"
               className="btn btn-primary"
-              disabled={!loanCsvText || importingLoans}
+              disabled={!loanCsvText || importingLoans || !loanPreview?.is_ready}
               onClick={() => void handleImport('loan-contracts')}
             >
               {importingLoans ? 'กำลังนำเข้าสัญญาเงินกู้...' : 'นำเข้าสัญญาเงินกู้'}
             </button>
           </div>
+          {renderPreview(loanPreview)}
         </section>
       </div>
     </div>
