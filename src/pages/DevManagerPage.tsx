@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
+import { SystemOverviewPanel } from '../components/SystemOverviewPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats } from '../types';
@@ -37,13 +38,6 @@ const sectionItems: Array<{ key: DevManagerSection; label: string; description: 
   { key: 'imports', label: 'การนำเข้าฐานข้อมูล', description: 'นำเข้าไฟล์ CSV สมาชิกและสินเชื่อ' },
   { key: 'approvals', label: 'ผู้ใช้งานรออนุมัติ', description: 'ตรวจและอนุมัติบัญชีผู้ใช้' },
 ];
-
-function formatCurrency(value: number) {
-  return new Intl.NumberFormat('th-TH', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
 
 export function DevManagerPage() {
   const { session } = useAuth();
@@ -290,85 +284,27 @@ export function DevManagerPage() {
   }
 
   function renderDashboard() {
-    const utilizationPercent = overview.total_loan_amount > 0
-      ? (overview.total_outstanding_amount / overview.total_loan_amount) * 100
-      : 0;
-
     return (
       <div className="devmanager-section-stack">
-        <section className="card dashboard-hero-card">
-          <div>
-            <div className="eyebrow">แดชบอร์ดผู้ดูแลระบบ</div>
-            <h3 className="section-title">สรุปภาพรวมของ {settings.group_name || APP_GROUP_NAME}</h3>
-            <p className="muted">
-              ติดตามจำนวนสมาชิก บัญชีผู้ใช้งาน สัญญาเงินกู้ และภาระคงค้างจากข้อมูลล่าสุดในระบบ Supabase
-            </p>
-          </div>
-          <div className="stats-row">
-            <div className="stat-chip">สมาชิกทั้งหมด {overview.members_count} ราย</div>
-            <div className="stat-chip">วงเงินกู้รวม {formatCurrency(overview.total_loan_amount)} บาท</div>
-            <div className="stat-chip">ยอดคงค้างรวม {formatCurrency(overview.total_outstanding_amount)} บาท</div>
+        <SystemOverviewPanel overview={overview} settings={settings} title={`สรุปภาพรวมของ ${settings.group_name || APP_GROUP_NAME}`} />
+
+        <section className="card">
+          <h3 className="section-title">ทางลัดสำหรับผู้ดูแลระบบ</h3>
+          <p className="muted">ใช้เมนูย่อยด้านล่างหรือกดทางลัดเหล่านี้เพื่อไปยังงานจัดการหลักของ DevManager</p>
+          <div className="dashboard-shortcuts">
+            {sectionItems.filter((item) => item.key !== 'dashboard').map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className="shortcut-card"
+                onClick={() => setActiveSection(item.key)}
+              >
+                <strong>{item.label}</strong>
+                <div className="muted">{item.description}</div>
+              </button>
+            ))}
           </div>
         </section>
-
-        <div className="dashboard-metrics-grid">
-          <section className="card metric-card">
-            <div className="metric-label">สมาชิกทั้งหมด</div>
-            <div className="metric-value">{overview.members_count}</div>
-            <div className="metric-subtext">ใช้งาน {overview.active_members_count} | ปิดใช้งาน {overview.inactive_members_count}</div>
-          </section>
-          <section className="card metric-card">
-            <div className="metric-label">บัญชีผู้ใช้งาน</div>
-            <div className="metric-value">{overview.users_count}</div>
-            <div className="metric-subtext">อนุมัติแล้ว {overview.approved_users_count} | รออนุมัติ {overview.pending_users_count}</div>
-          </section>
-          <section className="card metric-card">
-            <div className="metric-label">สัญญาเงินกู้</div>
-            <div className="metric-value">{overview.loan_contracts_count}</div>
-            <div className="metric-subtext">ยังคงค้าง {overview.active_loan_contracts_count} | ปิดแล้ว {overview.closed_loan_contracts_count}</div>
-          </section>
-          <section className="card metric-card">
-            <div className="metric-label">ผู้ดูแลระบบ</div>
-            <div className="metric-value">{overview.admin_users_count}</div>
-            <div className="metric-subtext">ดูแลการตั้งค่า อนุมัติผู้ใช้ และจัดการข้อมูลกลาง</div>
-          </section>
-        </div>
-
-        <div className="grid-two">
-          <section className="card insight-card">
-            <h3 className="section-title">สรุปวงเงินกู้</h3>
-            <div className="insight-row">
-              <span>วงเงินกู้รวม</span>
-              <strong>{formatCurrency(overview.total_loan_amount)} บาท</strong>
-            </div>
-            <div className="insight-row">
-              <span>ยอดคงค้างรวม</span>
-              <strong>{formatCurrency(overview.total_outstanding_amount)} บาท</strong>
-            </div>
-            <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${Math.min(utilizationPercent, 100)}%` }} />
-            </div>
-            <div className="muted">สัดส่วนยอดคงค้างต่อวงเงินกู้รวม {formatCurrency(utilizationPercent)}%</div>
-          </section>
-
-          <section className="card insight-card">
-            <h3 className="section-title">สัญญาณที่ควรติดตาม</h3>
-            <div className="list">
-              <div className="list-item">
-                <strong>ผู้ใช้รออนุมัติ</strong>
-                <div className="muted">มี {overview.pending_users_count} บัญชีที่ต้องตรวจสอบสิทธิ์เข้าใช้งาน</div>
-              </div>
-              <div className="list-item">
-                <strong>สมาชิกที่ปิดใช้งาน</strong>
-                <div className="muted">มี {overview.inactive_members_count} รายที่ไม่ได้ใช้งานในระบบปัจจุบัน</div>
-              </div>
-              <div className="list-item">
-                <strong>สัญญาที่มียอดคงค้าง</strong>
-                <div className="muted">มี {overview.active_loan_contracts_count} สัญญาที่ยังไม่ปิดบัญชี</div>
-              </div>
-            </div>
-          </section>
-        </div>
       </div>
     );
   }

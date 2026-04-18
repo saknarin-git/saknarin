@@ -98,7 +98,7 @@ export function LoginPage() {
       }
 
       setSessionData(result.data);
-      navigate(result.data.user.role === 'admin' ? '/devmanager' : '/dashboard');
+      navigate('/dashboard');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'เข้าสู่ระบบไม่สำเร็จ');
     } finally {

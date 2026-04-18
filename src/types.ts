@@ -73,6 +73,18 @@ export interface AdminOverview {
   total_outstanding_amount: number;
 }
 
+export interface SystemOverviewResponse {
+  success: boolean;
+  data: {
+    settings: AppSettings;
+    overview: AdminOverview;
+    current_user: {
+      role: UserRole;
+      approval_status: ApprovalStatus;
+    };
+  };
+}
+
 export interface MemberRegistryRecord {
   member_no: string;
   title: TitlePrefix;

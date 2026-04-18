@@ -74,7 +74,10 @@ export function AppMenu({ title }: AppMenuProps) {
 
         <nav className="drawer-nav">
           <Link to="/dashboard" className={`drawer-link ${location.pathname === '/dashboard' ? 'drawer-link-active' : ''}`}>
-            หน้าหลัก
+            ภาพรวมระบบ
+          </Link>
+          <Link to="/workspace" className={`drawer-link ${location.pathname === '/workspace' ? 'drawer-link-active' : ''}`}>
+            แดชบอร์ดผู้ใช้งาน
           </Link>
           {isAdmin && (
             <>

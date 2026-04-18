@@ -5,6 +5,7 @@ import { DashboardPage } from './pages/DashboardPage';
 import { DevManagerPage } from './pages/DevManagerPage';
 import { MemberRegistryPage } from './pages/MemberRegistryPage';
 import { LoanManagementPage } from './pages/LoanManagementPage';
+import { UserWorkspacePage } from './pages/UserWorkspacePage';
 import { useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({
@@ -21,7 +22,7 @@ function ProtectedRoute({
   }
 
   if (adminOnly && session.user.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/workspace" replace />;
   }
 
   return children;
@@ -38,6 +39,14 @@ export default function App() {
         element={
           <ProtectedRoute>
             <DashboardPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/workspace"
+        element={
+          <ProtectedRoute>
+            <UserWorkspacePage />
           </ProtectedRoute>
         }
       />
