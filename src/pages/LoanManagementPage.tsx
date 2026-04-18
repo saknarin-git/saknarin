@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { deleteLoanRecord, fetchLoans, updateLoanRecord } from '../api/adminApi';
+import { createLoanRecord, deleteLoanRecord, fetchLoans, updateLoanRecord } from '../api/adminApi';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../contexts/AuthContext';
-import type { LoanRegistryRecord, TitlePrefix } from '../types';
+import type { LoanRegistryRecord, PaginationMeta, TitlePrefix } from '../types';
 
 const titleOptions: TitlePrefix[] = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
 
@@ -39,13 +39,16 @@ export function LoanManagementPage() {
   const { session, logout } = useAuth();
   const accessToken = session?.access_token ?? '';
   const [loans, setLoans] = useState<LoanRegistryRecord[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, page_size: 20, total_pages: 1 });
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedContractNo, setSelectedContractNo] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<LoanFormState>(defaultForm);
 
   useEffect(() => {
@@ -60,17 +63,28 @@ export function LoanManagementPage() {
     return null;
   }
 
-  async function loadLoans(nextSearch = search) {
+  async function loadLoans(nextSearch = search, nextPage = pagination.page, nextStatusFilter = statusFilter) {
     setLoading(true);
     setErrorMessage('');
 
     try {
-      const response = await fetchLoans(accessToken, nextSearch);
+      const response = await fetchLoans(accessToken, {
+        search: nextSearch,
+        page: nextPage,
+        pageSize: pagination.page_size,
+        statusFilter: nextStatusFilter,
+      });
       setLoans(response.data.loans);
+      setPagination(response.data.pagination);
 
       if (response.data.loans.length === 0) {
         setSelectedContractNo('');
         setForm(defaultForm);
+        setIsCreating(false);
+        return;
+      }
+
+      if (isCreating) {
         return;
       }
 
@@ -84,6 +98,7 @@ export function LoanManagementPage() {
   }
 
   function selectLoan(loan: LoanRegistryRecord) {
+    setIsCreating(false);
     setSelectedContractNo(loan.contract_no);
     setForm({
       contract_no: loan.contract_no,
@@ -107,7 +122,7 @@ export function LoanManagementPage() {
     setErrorMessage('');
 
     try {
-      const response = await updateLoanRecord(accessToken, {
+      const payload = {
         contract_no: form.contract_no,
         member_no: form.member_no,
         title: form.title,
@@ -119,9 +134,13 @@ export function LoanManagementPage() {
         contract_date: form.contract_date || null,
         guarantor_1: form.guarantor_1,
         guarantor_2: form.guarantor_2 || null,
-      });
+      };
+      const response = isCreating
+        ? await createLoanRecord(accessToken, payload)
+        : await updateLoanRecord(accessToken, payload);
       setMessage(response.message);
-      await loadLoans();
+      await loadLoans(search, pagination.page, statusFilter);
+      setIsCreating(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'บันทึกข้อมูลสินเชื่อไม่สำเร็จ');
     } finally {
@@ -142,12 +161,24 @@ export function LoanManagementPage() {
     try {
       const response = await deleteLoanRecord(accessToken, contractNo);
       setMessage(response.message);
-      await loadLoans();
+      await loadLoans(search, pagination.page, statusFilter);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'ลบข้อมูลสินเชื่อไม่สำเร็จ');
     } finally {
       setDeleting(null);
     }
+  }
+
+  function startCreateMode() {
+    setIsCreating(true);
+    setSelectedContractNo('');
+    setForm(defaultForm);
+    setMessage('');
+    setErrorMessage('');
+  }
+
+  function handleSearch() {
+    void loadLoans(search, 1, statusFilter);
   }
 
   return (
@@ -163,16 +194,18 @@ export function LoanManagementPage() {
 
       <div className="hero">
         <h1>จัดการข้อมูลสินเชื่อ</h1>
-        <p>ค้นหา แก้ไข และลบสัญญาเงินกู้ในระบบ Supabase</p>
+        <p>ค้นหา กรองสถานะ แบ่งหน้า สร้างใหม่ แก้ไข และลบสัญญาเงินกู้ในระบบ Supabase</p>
       </div>
 
       <div className="grid-two registry-layout">
         <section className="card">
           <div className="section-toolbar">
             <InputField label="ค้นหาเลขที่สัญญา เลขสมาชิก หรือชื่อ" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <InputField label="กรองสถานะสินเชื่อ" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} placeholder="เช่น ปกติ, ปิดบัญชี" />
             <div className="actions compact-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => void loadLoans(search)}>ค้นหา</button>
-              <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); void loadLoans(''); }}>ล้างคำค้น</button>
+              <button type="button" className="btn btn-secondary" onClick={handleSearch}>ค้นหา</button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); setStatusFilter(''); void loadLoans('', 1, ''); }}>ล้างคำค้น</button>
+              <button type="button" className="btn btn-primary" onClick={startCreateMode}>สร้างสินเชื่อใหม่</button>
             </div>
           </div>
 
@@ -204,15 +237,22 @@ export function LoanManagementPage() {
               ))}
             </div>
           )}
+          <div className="pagination-bar">
+            <div className="muted">ทั้งหมด {pagination.total} รายการ | หน้า {pagination.page} / {pagination.total_pages}</div>
+            <div className="actions compact-actions">
+              <button type="button" className="btn btn-secondary" disabled={pagination.page <= 1 || loading} onClick={() => void loadLoans(search, pagination.page - 1, statusFilter)}>ก่อนหน้า</button>
+              <button type="button" className="btn btn-secondary" disabled={pagination.page >= pagination.total_pages || loading} onClick={() => void loadLoans(search, pagination.page + 1, statusFilter)}>ถัดไป</button>
+            </div>
+          </div>
         </section>
 
         <section className="card">
-          <h3 className="section-title">แก้ไขข้อมูลสินเชื่อ</h3>
-          {!selectedContractNo ? (
-            <p className="muted">เลือกสัญญาเงินกู้จากรายการด้านซ้ายเพื่อแก้ไขข้อมูล</p>
+          <h3 className="section-title">{isCreating ? 'สร้างข้อมูลสินเชื่อใหม่' : 'แก้ไขข้อมูลสินเชื่อ'}</h3>
+          {!isCreating && !selectedContractNo ? (
+            <p className="muted">เลือกสัญญาเงินกู้จากรายการด้านซ้ายเพื่อแก้ไขข้อมูล หรือกดสร้างสินเชื่อใหม่</p>
           ) : (
             <form onSubmit={handleSave}>
-              <InputField label="เลขที่สัญญา" value={form.contract_no} readOnly />
+              <InputField label="เลขที่สัญญา" value={form.contract_no} onChange={(event) => setForm((current) => ({ ...current, contract_no: event.target.value }))} readOnly={!isCreating} required />
               <InputField label="เลขที่สมาชิก" value={form.member_no} onChange={(event) => setForm((current) => ({ ...current, member_no: event.target.value }))} required />
               <label className="field">
                 <span>คำนำหน้าชื่อ</span>
@@ -232,11 +272,17 @@ export function LoanManagementPage() {
               <InputField label="ผู้ค้ำประกันคนที่ 2" value={form.guarantor_2} onChange={(event) => setForm((current) => ({ ...current, guarantor_2: event.target.value }))} />
               <div className="actions">
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลสินเชื่อ'}
+                  {saving ? 'กำลังบันทึก...' : isCreating ? 'สร้างข้อมูลสินเชื่อ' : 'บันทึกข้อมูลสินเชื่อ'}
                 </button>
-                <button type="button" className="btn btn-danger" disabled={deleting === selectedContractNo} onClick={() => void handleDelete(selectedContractNo)}>
-                  {deleting === selectedContractNo ? 'กำลังลบ...' : 'ลบสินเชื่อ'}
-                </button>
+                {isCreating ? (
+                  <button type="button" className="btn btn-secondary" onClick={() => { setIsCreating(false); if (loans[0]) selectLoan(loans[0]); }}>
+                    ยกเลิกการสร้าง
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-danger" disabled={deleting === selectedContractNo} onClick={() => void handleDelete(selectedContractNo)}>
+                    {deleting === selectedContractNo ? 'กำลังลบ...' : 'ลบสินเชื่อ'}
+                  </button>
+                )}
               </div>
             </form>
           )}

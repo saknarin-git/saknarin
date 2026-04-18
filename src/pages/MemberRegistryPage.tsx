@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { deleteMemberRecord, fetchMembers, updateMemberRecord } from '../api/adminApi';
+import { createMemberRecord, deleteMemberRecord, fetchMembers, updateMemberRecord } from '../api/adminApi';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../contexts/AuthContext';
-import type { MemberRegistryRecord, TitlePrefix } from '../types';
+import type { MemberRegistryRecord, PaginationMeta, TitlePrefix } from '../types';
 
 const titleOptions: TitlePrefix[] = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
 
@@ -29,13 +29,16 @@ export function MemberRegistryPage() {
   const { session, logout } = useAuth();
   const accessToken = session?.access_token ?? '';
   const [members, setMembers] = useState<MemberRegistryRecord[]>([]);
+  const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, page_size: 20, total_pages: 1 });
   const [search, setSearch] = useState('');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [selectedMemberNo, setSelectedMemberNo] = useState('');
+  const [isCreating, setIsCreating] = useState(false);
   const [form, setForm] = useState<MemberFormState>(defaultForm);
 
   useEffect(() => {
@@ -50,17 +53,28 @@ export function MemberRegistryPage() {
     return null;
   }
 
-  async function loadMembers(nextSearch = search) {
+  async function loadMembers(nextSearch = search, nextPage = pagination.page, nextFilter = activeFilter) {
     setLoading(true);
     setErrorMessage('');
 
     try {
-      const response = await fetchMembers(accessToken, nextSearch);
+      const response = await fetchMembers(accessToken, {
+        search: nextSearch,
+        page: nextPage,
+        pageSize: pagination.page_size,
+        activeFilter: nextFilter,
+      });
       setMembers(response.data.members);
+      setPagination(response.data.pagination);
 
       if (response.data.members.length === 0) {
         setSelectedMemberNo('');
         setForm(defaultForm);
+        setIsCreating(false);
+        return;
+      }
+
+      if (isCreating) {
         return;
       }
 
@@ -74,6 +88,7 @@ export function MemberRegistryPage() {
   }
 
   function selectMember(member: MemberRegistryRecord) {
+    setIsCreating(false);
     setSelectedMemberNo(member.member_no);
     setForm({
       member_no: member.member_no,
@@ -92,9 +107,12 @@ export function MemberRegistryPage() {
     setErrorMessage('');
 
     try {
-      const response = await updateMemberRecord(accessToken, form);
+      const response = isCreating
+        ? await createMemberRecord(accessToken, form)
+        : await updateMemberRecord(accessToken, form);
       setMessage(response.message);
-      await loadMembers();
+      await loadMembers(search, pagination.page, activeFilter);
+      setIsCreating(false);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'บันทึกข้อมูลสมาชิกไม่สำเร็จ');
     } finally {
@@ -118,12 +136,29 @@ export function MemberRegistryPage() {
     try {
       const response = await deleteMemberRecord(accessToken, memberNo);
       setMessage(response.message);
-      await loadMembers();
+      await loadMembers(search, pagination.page, activeFilter);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'ลบข้อมูลสมาชิกไม่สำเร็จ');
     } finally {
       setDeleting(null);
     }
+  }
+
+  function startCreateMode() {
+    setIsCreating(true);
+    setSelectedMemberNo('');
+    setForm(defaultForm);
+    setMessage('');
+    setErrorMessage('');
+  }
+
+  function handleSearch() {
+    void loadMembers(search, 1, activeFilter);
+  }
+
+  function handleFilterChange(value: 'all' | 'active' | 'inactive') {
+    setActiveFilter(value);
+    void loadMembers(search, 1, value);
   }
 
   return (
@@ -139,16 +174,25 @@ export function MemberRegistryPage() {
 
       <div className="hero">
         <h1>จัดการทะเบียนสมาชิก</h1>
-        <p>ค้นหา แก้ไข และลบข้อมูลสมาชิกจากฐานข้อมูล Supabase โดยตรง</p>
+        <p>ค้นหา กรองสถานะ แบ่งหน้า สร้างใหม่ แก้ไข และลบข้อมูลสมาชิกจากฐานข้อมูล Supabase โดยตรง</p>
       </div>
 
       <div className="grid-two registry-layout">
         <section className="card">
           <div className="section-toolbar">
             <InputField label="ค้นหาเลขสมาชิก หรือชื่อ" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <label className="field">
+              <span>กรองสถานะการใช้งาน</span>
+              <select value={activeFilter} onChange={(event) => handleFilterChange(event.target.value as 'all' | 'active' | 'inactive')}>
+                <option value="all">ทั้งหมด</option>
+                <option value="active">ใช้งาน</option>
+                <option value="inactive">ปิดใช้งาน</option>
+              </select>
+            </label>
             <div className="actions compact-actions">
-              <button type="button" className="btn btn-secondary" onClick={() => void loadMembers(search)}>ค้นหา</button>
-              <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); void loadMembers(''); }}>ล้างคำค้น</button>
+              <button type="button" className="btn btn-secondary" onClick={handleSearch}>ค้นหา</button>
+              <button type="button" className="btn btn-secondary" onClick={() => { setSearch(''); setActiveFilter('all'); void loadMembers('', 1, 'all'); }}>ล้างคำค้น</button>
+              <button type="button" className="btn btn-primary" onClick={startCreateMode}>สร้างสมาชิกใหม่</button>
             </div>
           </div>
 
@@ -182,15 +226,22 @@ export function MemberRegistryPage() {
               ))}
             </div>
           )}
+          <div className="pagination-bar">
+            <div className="muted">ทั้งหมด {pagination.total} รายการ | หน้า {pagination.page} / {pagination.total_pages}</div>
+            <div className="actions compact-actions">
+              <button type="button" className="btn btn-secondary" disabled={pagination.page <= 1 || loading} onClick={() => void loadMembers(search, pagination.page - 1, activeFilter)}>ก่อนหน้า</button>
+              <button type="button" className="btn btn-secondary" disabled={pagination.page >= pagination.total_pages || loading} onClick={() => void loadMembers(search, pagination.page + 1, activeFilter)}>ถัดไป</button>
+            </div>
+          </div>
         </section>
 
         <section className="card">
-          <h3 className="section-title">แก้ไขข้อมูลสมาชิก</h3>
-          {!selectedMemberNo ? (
-            <p className="muted">เลือกสมาชิกจากรายการด้านซ้ายเพื่อแก้ไขข้อมูล</p>
+          <h3 className="section-title">{isCreating ? 'สร้างข้อมูลสมาชิกใหม่' : 'แก้ไขข้อมูลสมาชิก'}</h3>
+          {!isCreating && !selectedMemberNo ? (
+            <p className="muted">เลือกสมาชิกจากรายการด้านซ้ายเพื่อแก้ไขข้อมูล หรือกดสร้างสมาชิกใหม่</p>
           ) : (
             <form onSubmit={handleSave}>
-              <InputField label="เลขที่สมาชิก" value={form.member_no} readOnly />
+              <InputField label="เลขที่สมาชิก" value={form.member_no} onChange={(event) => setForm((current) => ({ ...current, member_no: event.target.value }))} readOnly={!isCreating} required />
               <label className="field">
                 <span>คำนำหน้าชื่อ</span>
                 <select value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value as TitlePrefix }))}>
@@ -207,14 +258,20 @@ export function MemberRegistryPage() {
                   <option value="false">ปิดใช้งาน</option>
                 </select>
               </label>
-              <div className="muted">การแก้ไขชื่อสมาชิกจะอัปเดตไปยังบัญชีผู้ใช้และสินเชื่อที่ผูกกับสมาชิกนี้ด้วย</div>
+              <div className="muted">{isCreating ? 'สมาชิกใหม่จะพร้อมสำหรับการสมัครใช้งานหรือผูกกับสินเชื่อทันที' : 'การแก้ไขชื่อสมาชิกจะอัปเดตไปยังบัญชีผู้ใช้และสินเชื่อที่ผูกกับสมาชิกนี้ด้วย'}</div>
               <div className="actions">
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                  {saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลสมาชิก'}
+                  {saving ? 'กำลังบันทึก...' : isCreating ? 'สร้างข้อมูลสมาชิก' : 'บันทึกข้อมูลสมาชิก'}
                 </button>
-                <button type="button" className="btn btn-danger" disabled={deleting === selectedMemberNo} onClick={() => void handleDelete(selectedMemberNo)}>
-                  {deleting === selectedMemberNo ? 'กำลังลบ...' : 'ลบสมาชิก'}
-                </button>
+                {isCreating ? (
+                  <button type="button" className="btn btn-secondary" onClick={() => { setIsCreating(false); if (members[0]) selectMember(members[0]); }}>
+                    ยกเลิกการสร้าง
+                  </button>
+                ) : (
+                  <button type="button" className="btn btn-danger" disabled={deleting === selectedMemberNo} onClick={() => void handleDelete(selectedMemberNo)}>
+                    {deleting === selectedMemberNo ? 'กำลังลบ...' : 'ลบสมาชิก'}
+                  </button>
+                )}
               </div>
             </form>
           )}

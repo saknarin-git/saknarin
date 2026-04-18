@@ -334,6 +334,15 @@ textarea {
   margin-top: 4px;
 }
 
+.pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 640px) {
   .page-shell {
     padding: 14px;
@@ -346,5 +355,9 @@ textarea {
 
   .registry-card {
     padding: 12px;
+  }
+
+  .pagination-bar {
+    align-items: stretch;
   }
 }

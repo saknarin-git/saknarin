@@ -4,6 +4,15 @@ import { adminClient, ensureAdmin } from '../_shared/supabaseAdmin.ts';
 
 type ResourceType = 'members' | 'loans';
 
+function parsePage(value: string | null, fallback: number) {
+  const numeric = Number(value ?? fallback);
+  if (!Number.isFinite(numeric) || numeric < 1) {
+    return fallback;
+  }
+
+  return Math.floor(numeric);
+}
+
 function getResourceType(value: string | null): ResourceType {
   if (value === 'members' || value === 'loans') {
     return value;
@@ -45,18 +54,38 @@ function parseContractDate(value: unknown) {
   throw new Error('วันที่สร้างสัญญาไม่ถูกต้อง');
 }
 
-async function listMembers(search: string) {
+function createPagination(total: number, page: number, pageSize: number) {
+  return {
+    total,
+    page,
+    page_size: pageSize,
+    total_pages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+async function listMembers(search: string, page: number, pageSize: number, status: string) {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   let query = adminClient
     .from('members')
-    .select('member_no, title, first_name, last_name, legacy_status, active, created_at, updated_at')
+    .select('member_no, title, first_name, last_name, legacy_status, active, created_at, updated_at', { count: 'exact' })
     .order('member_no', { ascending: true })
-    .limit(200);
+    .range(from, to);
 
   if (search) {
     query = query.or(`member_no.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%`);
   }
 
-  const { data: members, error } = await query;
+  if (status === 'active') {
+    query = query.eq('active', true);
+  }
+
+  if (status === 'inactive') {
+    query = query.eq('active', false);
+  }
+
+  const { data: members, error, count } = await query;
   if (error) throw error;
 
   const memberNos = (members ?? []).map((item) => item.member_no);
@@ -83,27 +112,76 @@ async function listMembers(search: string) {
     loanCountMap.set(item.member_no, (loanCountMap.get(item.member_no) ?? 0) + 1);
   });
 
-  return (members ?? []).map((member) => ({
+  return {
+    members: (members ?? []).map((member) => ({
     ...member,
     linked_users: userCountMap.get(member.member_no) ?? 0,
     loan_contracts: loanCountMap.get(member.member_no) ?? 0,
-  }));
+    })),
+    pagination: createPagination(count ?? 0, page, pageSize),
+  };
 }
 
-async function listLoans(search: string) {
+async function listLoans(search: string, page: number, pageSize: number, status: string) {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   let query = adminClient
     .from('loan_contracts')
-    .select('contract_no, member_no, title, first_name, last_name, loan_amount, outstanding_amount, status, contract_date, guarantor_1, guarantor_2, created_at, updated_at')
+    .select('contract_no, member_no, title, first_name, last_name, loan_amount, outstanding_amount, status, contract_date, guarantor_1, guarantor_2, created_at, updated_at', { count: 'exact' })
     .order('contract_date', { ascending: false, nullsFirst: false })
-    .limit(200);
+    .range(from, to);
 
   if (search) {
     query = query.or(`contract_no.ilike.%${search}%,member_no.ilike.%${search}%,first_name.ilike.%${search}%,last_name.ilike.%${search}%,status.ilike.%${search}%`);
   }
 
-  const { data, error } = await query;
+  if (status) {
+    query = query.ilike('status', `%${status}%`);
+  }
+
+  const { data, error, count } = await query;
   if (error) throw error;
-  return data ?? [];
+  return {
+    loans: data ?? [],
+    pagination: createPagination(count ?? 0, page, pageSize),
+  };
+}
+
+async function createMember(payload: Record<string, unknown>) {
+  const memberNo = String(payload.member_no ?? '').trim();
+  const title = String(payload.title ?? '').trim();
+  const firstName = String(payload.first_name ?? '').trim();
+  const lastName = String(payload.last_name ?? '').trim();
+  const legacyStatus = String(payload.legacy_status ?? '').trim();
+  const active = Boolean(payload.active);
+
+  if (!memberNo || !title || !firstName || !lastName) {
+    throw new Error('ข้อมูลสมาชิกไม่ครบถ้วน');
+  }
+
+  const { data: existing, error: existingError } = await adminClient
+    .from('members')
+    .select('member_no')
+    .eq('member_no', memberNo)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+  if (existing) {
+    throw new Error('เลขที่สมาชิกนี้มีอยู่แล้วในระบบ');
+  }
+
+  const { error } = await adminClient.from('members').insert({
+    member_no: memberNo,
+    title,
+    first_name: firstName,
+    last_name: lastName,
+    legacy_status: legacyStatus || null,
+    active,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) throw error;
 }
 
 async function updateMember(payload: Record<string, unknown>) {
@@ -246,6 +324,58 @@ async function updateLoan(payload: Record<string, unknown>) {
   if (error) throw error;
 }
 
+async function createLoan(payload: Record<string, unknown>) {
+  const contractNo = String(payload.contract_no ?? '').trim();
+  const memberNo = String(payload.member_no ?? '').trim();
+  const title = String(payload.title ?? '').trim();
+  const firstName = String(payload.first_name ?? '').trim();
+  const lastName = String(payload.last_name ?? '').trim();
+  const guarantor1 = String(payload.guarantor_1 ?? '').trim();
+  const guarantor2 = String(payload.guarantor_2 ?? '').trim();
+
+  if (!contractNo || !memberNo || !title || !firstName || !lastName || !guarantor1) {
+    throw new Error('ข้อมูลสินเชื่อไม่ครบถ้วน');
+  }
+
+  const { data: existing, error: existingError } = await adminClient
+    .from('loan_contracts')
+    .select('contract_no')
+    .eq('contract_no', contractNo)
+    .maybeSingle();
+
+  if (existingError) throw existingError;
+  if (existing) {
+    throw new Error('เลขที่สัญญานี้มีอยู่แล้วในระบบ');
+  }
+
+  const { data: member, error: memberError } = await adminClient
+    .from('members')
+    .select('member_no')
+    .eq('member_no', memberNo)
+    .single();
+
+  if (memberError || !member) {
+    throw new Error('ไม่พบเลขที่สมาชิกในระบบ');
+  }
+
+  const { error } = await adminClient.from('loan_contracts').insert({
+    contract_no: contractNo,
+    member_no: memberNo,
+    title,
+    first_name: firstName,
+    last_name: lastName,
+    loan_amount: parseDecimal(payload.loan_amount),
+    outstanding_amount: parseDecimal(payload.outstanding_amount),
+    status: String(payload.status ?? '').trim() || null,
+    contract_date: parseContractDate(payload.contract_date),
+    guarantor_1: guarantor1,
+    guarantor_2: guarantor2 || null,
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) throw error;
+}
+
 async function deleteLoan(contractNo: string) {
   if (!contractNo) {
     throw new Error('ไม่พบเลขที่สัญญา');
@@ -271,14 +401,30 @@ Deno.serve(async (request) => {
     if (request.method === 'GET') {
       const resource = getResourceType(url.searchParams.get('resource'));
       const search = url.searchParams.get('search')?.trim() ?? '';
+      const page = parsePage(url.searchParams.get('page'), 1);
+      const pageSize = parsePage(url.searchParams.get('pageSize'), 20);
+      const status = url.searchParams.get('status')?.trim() ?? '';
 
       if (resource === 'members') {
-        const members = await listMembers(search);
-        return jsonResponse({ success: true, data: { members } });
+        const data = await listMembers(search, page, pageSize, status);
+        return jsonResponse({ success: true, data });
       }
 
-      const loans = await listLoans(search);
-      return jsonResponse({ success: true, data: { loans } });
+      const data = await listLoans(search, page, pageSize, status);
+      return jsonResponse({ success: true, data });
+    }
+
+    if (request.method === 'POST') {
+      const { resource, ...payload } = await request.json() as Record<string, unknown> & { resource?: ResourceType };
+      const resourceType = getResourceType(resource ?? null);
+
+      if (resourceType === 'members') {
+        await createMember(payload);
+        return jsonResponse({ success: true, message: 'สร้างข้อมูลสมาชิกเรียบร้อย' });
+      }
+
+      await createLoan(payload);
+      return jsonResponse({ success: true, message: 'สร้างข้อมูลสินเชื่อเรียบร้อย' });
     }
 
     if (request.method === 'PUT') {

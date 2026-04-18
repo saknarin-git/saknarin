@@ -87,6 +87,13 @@ export interface LoanRegistryRecord {
   updated_at: string;
 }
 
+export interface PaginationMeta {
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
 export interface ImportResult {
   total: number;
   inserted: number;
