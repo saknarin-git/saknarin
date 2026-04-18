@@ -1,0 +1,172 @@
+:root {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  color: #132a13;
+  background: #f5fff2;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f5fff2 0%, #edf7ed 100%);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.page-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+.hero {
+  background: #1b4332;
+  color: white;
+  border-radius: 18px;
+  padding: 24px;
+  margin-bottom: 20px;
+  box-shadow: 0 12px 35px rgba(27, 67, 50, 0.18);
+}
+
+.grid-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 18px;
+}
+
+.card {
+  background: white;
+  border-radius: 18px;
+  padding: 20px;
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.08);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.field input,
+.field select,
+.field textarea {
+  border: 1px solid #cfe3cf;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fcfffb;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.btn {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-primary {
+  background: #2d6a4f;
+  color: white;
+}
+
+.btn-secondary {
+  background: #d8f3dc;
+  color: #1b4332;
+}
+
+.btn-danger {
+  background: #d90429;
+  color: white;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.badge-approved {
+  background: #d8f3dc;
+  color: #1b4332;
+}
+
+.badge-pending {
+  background: #fff3cd;
+  color: #7a5c00;
+}
+
+.badge-rejected {
+  background: #ffe0e0;
+  color: #a61b1b;
+}
+
+.notice {
+  border-left: 4px solid #2d6a4f;
+  background: #f2fff4;
+  padding: 10px 12px;
+  border-radius: 10px;
+  margin: 10px 0;
+}
+
+.muted {
+  color: #557c65;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.list-item {
+  border: 1px solid #e1efe1;
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    padding: 14px;
+  }
+
+  .hero,
+  .card {
+    padding: 16px;
+  }
+}

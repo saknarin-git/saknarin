@@ -1,0 +1,16 @@
+project_id = "zpknotoujmvkeqeoqgyf"
+
+[functions.member-search]
+verify_jwt = false
+
+[functions.auth-register]
+verify_jwt = false
+
+[functions.auth-login]
+verify_jwt = false
+
+[functions.bootstrap-admin]
+verify_jwt = false
+
+[functions.admin-users]
+verify_jwt = true

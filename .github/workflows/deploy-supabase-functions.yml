@@ -1,0 +1,34 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/**'
+      - '.github/workflows/deploy-supabase-functions.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: zpknotoujmvkeqeoqgyf
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Deploy public functions
+        run: |
+          supabase functions deploy member-search --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy auth-register --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy auth-login --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy bootstrap-admin --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Deploy protected admin function
+        run: supabase functions deploy admin-users --project-ref "$PROJECT_REF"
