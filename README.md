@@ -14,6 +14,7 @@
 ## โครงสร้าง
 - src/ = Frontend React + Vite
 - supabase/functions/ = Edge Functions แยกตามงาน
+- supabase/migrations/ = Database migrations สำหรับสร้าง schema บน Supabase
 - .github/workflows/ = Auto Deploy
 - supabase/sql/001_init_schema.sql = สร้างตารางเริ่มต้น
 
@@ -26,7 +27,11 @@
 6. ตั้ง GitHub Secrets ดังนี้
    - VITE_SUPABASE_ANON_KEY
    - SUPABASE_ACCESS_TOKEN
+   - SUPABASE_DB_PASSWORD
+   - BOOTSTRAP_ADMIN_TOKEN
 7. เปิด GitHub Pages แบบ Source = GitHub Actions
+
+หมายเหตุเพิ่มเติม: workflow backend จะ deploy functions และพยายาม push database migrations อัตโนมัติจากโฟลเดอร์ supabase/migrations ถ้ามีการตั้งค่า SUPABASE_DB_PASSWORD ไว้ใน GitHub Secrets แล้ว
 
 หมายเหตุ: ฝั่ง frontend ในโปรเจกต์นี้จะส่งค่า VITE_SUPABASE_ANON_KEY ไปกับ request ไปยัง Supabase Edge Functions ดังนั้นค่านี้ต้องเป็น public key ที่เปิดเผยได้เท่านั้น
 

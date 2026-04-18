@@ -17,6 +17,7 @@ jobs:
     env:
       BOOTSTRAP_ADMIN_TOKEN: ${{ secrets.BOOTSTRAP_ADMIN_TOKEN }}
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
       PROJECT_REF: zpknotoujmvkeqeoqgyf
     steps:
       - name: Checkout
@@ -29,6 +30,17 @@ jobs:
 
       - name: Sync Supabase secrets
         run: supabase secrets set BOOTSTRAP_ADMIN_TOKEN="$BOOTSTRAP_ADMIN_TOKEN" --project-ref "$PROJECT_REF"
+
+      - name: Push database migrations
+        shell: bash
+        run: |
+          if [ -z "$SUPABASE_DB_PASSWORD" ]; then
+            echo "SUPABASE_DB_PASSWORD is not set, skipping database migrations."
+            exit 0
+          fi
+
+          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --include-all
 
       - name: Deploy public functions
         run: |
