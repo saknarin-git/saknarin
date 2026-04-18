@@ -1,6 +1,7 @@
 import { createContext, useContext, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SessionData } from '../types';
+import { getDefaultPermissionsForRole } from '../constants/permissions';
 
 interface AuthContextValue {
   session: SessionData | null;
@@ -20,7 +21,19 @@ function readStoredSession(): SessionData | null {
   }
 
   try {
-    return JSON.parse(raw) as SessionData;
+    const parsed = JSON.parse(raw) as Partial<SessionData> & { user?: SessionData['user'] };
+
+    if (!parsed.user || !parsed.access_token || !parsed.refresh_token) {
+      localStorage.removeItem(STORAGE_KEY);
+      return null;
+    }
+
+    return {
+      access_token: parsed.access_token,
+      refresh_token: parsed.refresh_token,
+      user: parsed.user,
+      permissions: parsed.permissions ?? getDefaultPermissionsForRole(parsed.user.role),
+    };
   } catch {
     localStorage.removeItem(STORAGE_KEY);
     return null;

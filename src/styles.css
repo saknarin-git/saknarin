@@ -357,6 +357,38 @@ textarea {
   margin-top: 18px;
 }
 
+.permission-matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.permission-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.6fr) repeat(3, minmax(80px, 0.6fr));
+  gap: 10px;
+  align-items: center;
+  border: 1px solid #e1efe1;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: #fcfffb;
+}
+
+.permission-row-header {
+  background: #edf7ed;
+  font-weight: 700;
+}
+
+.permission-cell {
+  display: flex;
+  justify-content: center;
+}
+
+.permission-cell input {
+  width: 18px;
+  height: 18px;
+}
+
 .devmanager-subnav {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));

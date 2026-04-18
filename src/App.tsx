@@ -8,14 +8,42 @@ import { LoanManagementPage } from './pages/LoanManagementPage';
 import { OfficerWorkspacePage } from './pages/OfficerWorkspacePage';
 import { UserWorkspacePage } from './pages/UserWorkspacePage';
 import { useAuth } from './contexts/AuthContext';
-import type { UserRole } from './types';
+import type { PermissionKey } from './types';
+
+function getDefaultAuthorizedPath(session: NonNullable<ReturnType<typeof useAuth>['session']>) {
+  if (session.permissions.view_system_dashboard) {
+    return '/dashboard';
+  }
+
+  if (session.permissions.view_user_workspace) {
+    return '/workspace';
+  }
+
+  if (session.permissions.view_officer_workspace) {
+    return '/officer';
+  }
+
+  if (session.permissions.manage_members) {
+    return '/members';
+  }
+
+  if (session.permissions.manage_loans) {
+    return '/loans';
+  }
+
+  if (session.permissions.access_devmanager) {
+    return '/devmanager';
+  }
+
+  return '/';
+}
 
 function ProtectedRoute({
   children,
-  allowedRoles,
+  requiredPermission,
 }: {
   children: ReactElement;
-  allowedRoles?: UserRole[];
+  requiredPermission?: PermissionKey;
 }) {
   const { session } = useAuth();
 
@@ -23,8 +51,8 @@ function ProtectedRoute({
     return <Navigate to="/" replace />;
   }
 
-  if (allowedRoles && !allowedRoles.includes(session.user.role)) {
-    return <Navigate to="/workspace" replace />;
+  if (requiredPermission && !session.permissions[requiredPermission]) {
+    return <Navigate to={getDefaultAuthorizedPath(session)} replace />;
   }
 
   return children;
@@ -32,14 +60,15 @@ function ProtectedRoute({
 
 export default function App() {
   const { session } = useAuth();
+  const defaultPath = session ? getDefaultAuthorizedPath(session) : '/';
 
   return (
     <Routes>
-      <Route path="/" element={session ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+      <Route path="/" element={session ? <Navigate to={defaultPath} replace /> : <LoginPage />} />
       <Route
         path="/dashboard"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="view_system_dashboard">
             <DashboardPage />
           </ProtectedRoute>
         }
@@ -47,7 +76,7 @@ export default function App() {
       <Route
         path="/workspace"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute requiredPermission="view_user_workspace">
             <UserWorkspacePage />
           </ProtectedRoute>
         }
@@ -55,7 +84,7 @@ export default function App() {
       <Route
         path="/officer"
         element={
-          <ProtectedRoute allowedRoles={['admin', 'officer']}>
+          <ProtectedRoute requiredPermission="view_officer_workspace">
             <OfficerWorkspacePage />
           </ProtectedRoute>
         }
@@ -63,7 +92,7 @@ export default function App() {
       <Route
         path="/devmanager"
         element={
-          <ProtectedRoute allowedRoles={['admin']}>
+          <ProtectedRoute requiredPermission="access_devmanager">
             <DevManagerPage />
           </ProtectedRoute>
         }
@@ -71,7 +100,7 @@ export default function App() {
       <Route
         path="/members"
         element={
-          <ProtectedRoute allowedRoles={['admin', 'officer']}>
+          <ProtectedRoute requiredPermission="manage_members">
             <MemberRegistryPage />
           </ProtectedRoute>
         }
@@ -79,7 +108,7 @@ export default function App() {
       <Route
         path="/loans"
         element={
-          <ProtectedRoute allowedRoles={['admin', 'officer']}>
+          <ProtectedRoute requiredPermission="manage_loans">
             <LoanManagementPage />
           </ProtectedRoute>
         }

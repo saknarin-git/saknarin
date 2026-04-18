@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchSystemOverview } from '../api/overviewApi';
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
+import { defaultRolePermissions } from '../constants/permissions';
 import { useAuth } from '../contexts/AuthContext';
 import type { AdminOverview, AppSettings } from '../types';
 
@@ -10,6 +11,7 @@ const defaultSettings: AppSettings = {
   group_name: APP_GROUP_NAME,
   notice: '',
   allow_registration: true,
+  role_permissions: defaultRolePermissions,
 };
 
 const defaultOverview: AdminOverview = {
@@ -19,6 +21,7 @@ const defaultOverview: AdminOverview = {
   users_count: 0,
   approved_users_count: 0,
   pending_users_count: 0,
+  dev_admin_users_count: 0,
   officer_users_count: 0,
   admin_users_count: 0,
   loan_contracts_count: 0,
@@ -71,19 +74,26 @@ export function OfficerWorkspacePage() {
           <div className="eyebrow">งานสำคัญวันนี้</div>
           <h3 className="section-title">ภาพรวมงานปฏิบัติการของ {settings.group_name || APP_GROUP_NAME}</h3>
           <div className="dashboard-shortcuts">
-            <Link to="/members" className="shortcut-card shortcut-link-card">
-              <strong>ตรวจทะเบียนสมาชิก</strong>
-              <div className="muted">สมาชิกใช้งานอยู่ {overview.active_members_count} ราย พร้อมตรวจข้อมูลเพิ่มเติม</div>
-            </Link>
-            <Link to="/loans" className="shortcut-card shortcut-link-card">
-              <strong>ติดตามสัญญาเงินกู้</strong>
-              <div className="muted">สัญญาที่ยังคงค้าง {overview.active_loan_contracts_count} รายการ</div>
-            </Link>
+            {session.permissions.manage_members && (
+              <Link to="/members" className="shortcut-card shortcut-link-card">
+                <strong>ตรวจทะเบียนสมาชิก</strong>
+                <div className="muted">สมาชิกใช้งานอยู่ {overview.active_members_count} ราย พร้อมตรวจข้อมูลเพิ่มเติม</div>
+              </Link>
+            )}
+            {session.permissions.manage_loans && (
+              <Link to="/loans" className="shortcut-card shortcut-link-card">
+                <strong>ติดตามสัญญาเงินกู้</strong>
+                <div className="muted">สัญญาที่ยังคงค้าง {overview.active_loan_contracts_count} รายการ</div>
+              </Link>
+            )}
             <Link to="/workspace" className="shortcut-card shortcut-link-card">
               <strong>กลับแดชบอร์ดผู้ใช้งาน</strong>
               <div className="muted">จัดการข้อมูลส่วนตัว รหัสผ่าน และสิทธิ์การเข้าถึงของบัญชี</div>
             </Link>
           </div>
+          {!session.permissions.manage_members && !session.permissions.manage_loans && (
+            <div className="notice">บทบาทของคุณเข้าหน้าศูนย์งานเจ้าหน้าที่ได้ แต่ยังไม่ได้รับสิทธิ์จัดการทะเบียนสมาชิกหรือสินเชื่อ</div>
+          )}
         </section>
 
         <section className="card">

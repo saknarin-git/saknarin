@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
+import { defaultRolePermissions, permissionLabels, roleLabels } from '../constants/permissions';
 import { SystemOverviewPanel } from '../components/SystemOverviewPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
-import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats } from '../types';
+import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, PermissionKey } from '../types';
 import { buildCsvPreview } from '../utils/csvPreview';
 
 const defaultSettings: AppSettings = {
   group_name: APP_GROUP_NAME,
   notice: 'ผู้ดูแลระบบสามารถตั้งค่าข้อความประกาศได้จากหน้านี้',
   allow_registration: true,
+  role_permissions: defaultRolePermissions,
 };
 
 const defaultOverview: AdminOverview = {
@@ -21,6 +23,7 @@ const defaultOverview: AdminOverview = {
   users_count: 0,
   approved_users_count: 0,
   pending_users_count: 0,
+  dev_admin_users_count: 0,
   officer_users_count: 0,
   admin_users_count: 0,
   loan_contracts_count: 0,
@@ -42,6 +45,7 @@ const sectionItems: Array<{ key: DevManagerSection; label: string; description: 
 
 export function DevManagerPage() {
   const { session } = useAuth();
+  const isDevAdmin = session?.user.role === 'dev_admin';
   const [users, setUsers] = useState<AppUser[]>([]);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [importStats, setImportStats] = useState<ImportStats>({ members_count: 0, loan_contracts_count: 0 });
@@ -87,7 +91,11 @@ export function DevManagerPage() {
     }
   }
 
-  async function handleApproval(userId: string, approvalStatus: 'approved' | 'rejected', role: 'member' | 'officer' | 'admin') {
+  async function handleApproval(
+    userId: string,
+    approvalStatus: 'approved' | 'rejected',
+    role: 'member' | 'officer' | 'admin' | 'dev_admin',
+  ) {
     if (!session) {
       return;
     }
@@ -107,11 +115,33 @@ export function DevManagerPage() {
     }
 
     try {
-      const result = await updateSettings(session.access_token, settings);
+      const result = await updateSettings(
+        session.access_token,
+        isDevAdmin
+          ? settings
+          : {
+              group_name: settings.group_name,
+              notice: settings.notice,
+              allow_registration: settings.allow_registration,
+            } as AppSettings,
+      );
       setMessage(result.message);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'บันทึกการตั้งค่าไม่สำเร็จ');
     }
+  }
+
+  function handlePermissionToggle(role: 'admin' | 'officer' | 'member', permission: PermissionKey) {
+    setSettings((current) => ({
+      ...current,
+      role_permissions: {
+        ...current.role_permissions,
+        [role]: {
+          ...current.role_permissions[role],
+          [permission]: !current.role_permissions[role][permission],
+        },
+      },
+    }));
   }
 
   async function handleFileSelection(
@@ -353,7 +383,7 @@ export function DevManagerPage() {
               </div>
               <div className="list-item">
                 <strong>จำนวนผู้ดูแลระบบ</strong>
-                <div className="muted">มีผู้ดูแลระบบ {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
+                <div className="muted">มี Dev Admin {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
               </div>
             </div>
           </section>
@@ -397,6 +427,49 @@ export function DevManagerPage() {
           <button type="button" className="btn btn-primary" onClick={handleSaveSettings}>
             บันทึกการตั้งค่า
           </button>
+        </div>
+
+        <div className="section-space">
+          <h3 className="section-title">สิทธิ์การเข้าถึงหน้าเว็บตามบทบาท</h3>
+          {isDevAdmin ? (
+            <div className="permission-matrix">
+              <div className="permission-row permission-row-header">
+                <div>สิทธิ์</div>
+                <div>{roleLabels.admin}</div>
+                <div>{roleLabels.officer}</div>
+                <div>{roleLabels.member}</div>
+              </div>
+              {(Object.keys(permissionLabels) as PermissionKey[]).map((permission) => (
+                <div key={permission} className="permission-row">
+                  <div>{permissionLabels[permission]}</div>
+                  <label className="permission-cell">
+                    <input
+                      type="checkbox"
+                      checked={settings.role_permissions.admin[permission]}
+                      onChange={() => handlePermissionToggle('admin', permission)}
+                    />
+                  </label>
+                  <label className="permission-cell">
+                    <input
+                      type="checkbox"
+                      checked={settings.role_permissions.officer[permission]}
+                      onChange={() => handlePermissionToggle('officer', permission)}
+                    />
+                  </label>
+                  <label className="permission-cell">
+                    <input
+                      type="checkbox"
+                      checked={settings.role_permissions.member[permission]}
+                      onChange={() => handlePermissionToggle('member', permission)}
+                    />
+                  </label>
+                </div>
+              ))}
+              <div className="notice">Dev Admin มีสิทธิ์เต็มระบบเสมอ และไม่ถูกปรับจากตารางนี้</div>
+            </div>
+          ) : (
+            <div className="notice">ตารางสิทธิ์นี้ดูได้อย่างเดียวสำหรับ Admin ปกติ การแก้ไขทำได้เฉพาะ Dev Admin</div>
+          )}
         </div>
       </section>
     );
@@ -449,6 +522,15 @@ export function DevManagerPage() {
                   >
                     ตั้งเป็นแอดมิน
                   </button>
+                  {isDevAdmin && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => handleApproval(user.id, 'approved', 'dev_admin')}
+                    >
+                      ตั้งเป็น Dev Admin
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

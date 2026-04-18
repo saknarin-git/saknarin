@@ -1,7 +1,7 @@
 import '../_shared/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { adminClient, toAuthEmail } from '../_shared/supabaseAdmin.ts';
+import { adminClient, getPermissionsForRole, toAuthEmail } from '../_shared/supabaseAdmin.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -48,6 +48,8 @@ Deno.serve(async (request) => {
       );
     }
 
+    const permissions = await getPermissionsForRole(profile.role);
+
     return jsonResponse({
       success: true,
       message: 'เข้าสู่ระบบสำเร็จ',
@@ -55,6 +57,7 @@ Deno.serve(async (request) => {
         access_token: session.access_token,
         refresh_token: session.refresh_token,
         user: profile,
+        permissions,
       },
     });
   } catch (error) {

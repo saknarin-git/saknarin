@@ -1,6 +1,6 @@
 import '../_shared/edge-runtime.d.ts';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { adminClient, ensureAdmin } from '../_shared/supabaseAdmin.ts';
+import { adminClient, ensureDevAdmin, ensurePermission, getDefaultRolePermissions, getRolePermissionsMatrix, normalizeRolePermissions } from '../_shared/supabaseAdmin.ts';
 
 type ImportType = 'members' | 'loan-contracts';
 
@@ -257,7 +257,7 @@ Deno.serve(async (request) => {
 
   try {
     const accessToken = request.headers.get('Authorization')?.replace('Bearer ', '');
-    const adminProfile = await ensureAdmin(accessToken);
+    const userProfile = await ensurePermission(accessToken, 'access_devmanager');
 
     if (request.method === 'GET') {
       const [
@@ -272,7 +272,7 @@ Deno.serve(async (request) => {
           .from('app_users')
           .select('id, member_no, title, first_name, last_name, username, role, approval_status')
           .order('created_at', { ascending: false }),
-        adminClient.from('app_settings').select('group_name, notice, allow_registration').eq('id', 1).single(),
+        adminClient.from('app_settings').select('group_name, notice, allow_registration, role_permissions').eq('id', 1).single(),
         adminClient.from('members').select('*', { count: 'exact', head: true }),
         adminClient.from('members').select('*', { count: 'exact', head: true }).eq('active', true),
         adminClient.from('loan_contracts').select('*', { count: 'exact', head: true }),
@@ -286,6 +286,7 @@ Deno.serve(async (request) => {
       const usersList = users ?? [];
       const pendingUsers = usersList.filter((user) => user.approval_status === 'pending').length;
       const approvedUsers = usersList.filter((user) => user.approval_status === 'approved').length;
+      const devAdmins = usersList.filter((user) => user.role === 'dev_admin').length;
       const officerUsers = usersList.filter((user) => user.role === 'officer').length;
       const adminUsers = usersList.filter((user) => user.role === 'admin').length;
       const loans = (loanRows ?? []) as LoanOverviewRow[];
@@ -297,11 +298,18 @@ Deno.serve(async (request) => {
         return normalizedStatus.includes('ปิด') || normalizedStatus.includes('closed') || Number(loan.outstanding_amount ?? 0) <= 0;
       }).length;
 
+      const rolePermissions = normalizeRolePermissions(settings?.role_permissions ?? getDefaultRolePermissions());
+
       return jsonResponse({
         success: true,
         data: {
           users: usersList,
-          settings,
+          settings: {
+            group_name: settings.group_name,
+            notice: settings.notice,
+            allow_registration: settings.allow_registration,
+            role_permissions: rolePermissions,
+          },
           import_stats: {
             members_count: membersCount ?? 0,
             loan_contracts_count: contractsCount ?? 0,
@@ -313,6 +321,7 @@ Deno.serve(async (request) => {
             users_count: usersList.length,
             approved_users_count: approvedUsers,
             pending_users_count: pendingUsers,
+            dev_admin_users_count: devAdmins,
             officer_users_count: officerUsers,
             admin_users_count: adminUsers,
             loan_contracts_count: contractsCount ?? 0,
@@ -354,8 +363,12 @@ Deno.serve(async (request) => {
         return jsonResponse({ success: false, message: 'สถานะไม่ถูกต้อง' }, 400);
       }
 
-      if (!['member', 'officer', 'admin'].includes(role)) {
+      if (!['member', 'officer', 'admin', 'dev_admin'].includes(role)) {
         return jsonResponse({ success: false, message: 'สิทธิ์ผู้ใช้ไม่ถูกต้อง' }, 400);
+      }
+
+      if (role === 'dev_admin' && userProfile.role !== 'dev_admin') {
+        return jsonResponse({ success: false, message: 'เฉพาะ Dev Admin เท่านั้นที่กำหนด Dev Admin ได้' }, 403);
       }
 
       const { error } = await adminClient
@@ -364,7 +377,7 @@ Deno.serve(async (request) => {
           approval_status: approvalStatus,
           role,
           approved_at: approvalStatus === 'approved' ? new Date().toISOString() : null,
-          approved_by: adminProfile.auth_user_id,
+          approved_by: userProfile.auth_user_id,
         })
         .eq('id', userId);
 
@@ -378,11 +391,21 @@ Deno.serve(async (request) => {
     if (request.method === 'PUT') {
       const settings = await request.json();
 
+      const isDevAdmin = userProfile.role === 'dev_admin';
+      const nextRolePermissions = normalizeRolePermissions(settings.role_permissions ?? getDefaultRolePermissions());
+
+      if (settings.role_permissions && !isDevAdmin) {
+        return jsonResponse({ success: false, message: 'เฉพาะ Dev Admin เท่านั้นที่ตั้งค่าสิทธิ์ของแต่ละบทบาทได้' }, 403);
+      }
+
+      const currentMatrix = await getRolePermissionsMatrix();
+
       const { error } = await adminClient.from('app_settings').upsert({
         id: 1,
         group_name: settings.group_name,
         notice: settings.notice,
         allow_registration: settings.allow_registration,
+        role_permissions: isDevAdmin ? nextRolePermissions : currentMatrix,
         updated_at: new Date().toISOString(),
       });
 

@@ -1,6 +1,6 @@
 import '../_shared/edge-runtime.d.ts';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { adminClient, ensureStaff } from '../_shared/supabaseAdmin.ts';
+import { adminClient, ensurePermission } from '../_shared/supabaseAdmin.ts';
 
 type ResourceType = 'members' | 'loans';
 
@@ -396,11 +396,11 @@ Deno.serve(async (request) => {
 
   try {
     const accessToken = request.headers.get('Authorization')?.replace('Bearer ', '');
-    const staffProfile = await ensureStaff(accessToken);
     const url = new URL(request.url);
 
     if (request.method === 'GET') {
       const resource = getResourceType(url.searchParams.get('resource'));
+      await ensurePermission(accessToken, resource === 'members' ? 'manage_members' : 'manage_loans');
       const search = url.searchParams.get('search')?.trim() ?? '';
       const page = parsePage(url.searchParams.get('page'), 1);
       const pageSize = parsePage(url.searchParams.get('pageSize'), 20);
@@ -418,6 +418,7 @@ Deno.serve(async (request) => {
     if (request.method === 'POST') {
       const { resource, ...payload } = await request.json() as Record<string, unknown> & { resource?: ResourceType };
       const resourceType = getResourceType(resource ?? null);
+      await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
 
       if (resourceType === 'members') {
         await createMember(payload);
@@ -431,6 +432,7 @@ Deno.serve(async (request) => {
     if (request.method === 'PUT') {
       const { resource, ...payload } = await request.json() as Record<string, unknown> & { resource?: ResourceType };
       const resourceType = getResourceType(resource ?? null);
+      await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
 
       if (resourceType === 'members') {
         await updateMember(payload);
@@ -449,9 +451,10 @@ Deno.serve(async (request) => {
       };
 
       const resourceType = getResourceType(resource ?? null);
+      const currentUser = await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
 
       if (resourceType === 'members') {
-        await deleteMember(String(memberNo ?? '').trim(), staffProfile.member_no);
+        await deleteMember(String(memberNo ?? '').trim(), currentUser.member_no);
         return jsonResponse({ success: true, message: 'ลบข้อมูลสมาชิกเรียบร้อย' });
       }
 

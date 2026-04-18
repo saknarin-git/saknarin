@@ -1,6 +1,16 @@
 export type TitlePrefix = 'นาย' | 'นาง' | 'นางสาว' | 'เด็กชาย' | 'เด็กหญิง';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
-export type UserRole = 'member' | 'officer' | 'admin';
+export type UserRole = 'member' | 'officer' | 'admin' | 'dev_admin';
+export type PermissionKey =
+  | 'view_system_dashboard'
+  | 'view_user_workspace'
+  | 'view_officer_workspace'
+  | 'manage_members'
+  | 'manage_loans'
+  | 'access_devmanager';
+
+export type PermissionSet = Record<PermissionKey, boolean>;
+export type RolePermissionsMatrix = Record<UserRole, PermissionSet>;
 
 export interface MemberRecord {
   member_no: string;
@@ -39,6 +49,7 @@ export interface SessionData {
   access_token: string;
   refresh_token: string;
   user: AppUser;
+  permissions: PermissionSet;
 }
 
 export interface AuthResult {
@@ -51,6 +62,7 @@ export interface AppSettings {
   group_name: string;
   notice: string;
   allow_registration: boolean;
+  role_permissions: RolePermissionsMatrix;
 }
 
 export interface ImportStats {
@@ -65,6 +77,7 @@ export interface AdminOverview {
   users_count: number;
   approved_users_count: number;
   pending_users_count: number;
+  dev_admin_users_count: number;
   officer_users_count: number;
   admin_users_count: number;
   loan_contracts_count: number;
@@ -82,6 +95,7 @@ export interface SystemOverviewResponse {
     current_user: {
       role: UserRole;
       approval_status: ApprovalStatus;
+      permissions: PermissionSet;
     };
   };
 }

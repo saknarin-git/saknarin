@@ -5,11 +5,13 @@ import { SystemOverviewPanel } from '../components/SystemOverviewPanel';
 import { useAuth } from '../contexts/AuthContext';
 import type { AdminOverview, AppSettings } from '../types';
 import { APP_GROUP_NAME } from '../constants/appBrand';
+import { defaultRolePermissions } from '../constants/permissions';
 
 const defaultSettings: AppSettings = {
   group_name: APP_GROUP_NAME,
   notice: '',
   allow_registration: true,
+  role_permissions: defaultRolePermissions,
 };
 
 const defaultOverview: AdminOverview = {
@@ -19,6 +21,7 @@ const defaultOverview: AdminOverview = {
   users_count: 0,
   approved_users_count: 0,
   pending_users_count: 0,
+  dev_admin_users_count: 0,
   officer_users_count: 0,
   admin_users_count: 0,
   loan_contracts_count: 0,

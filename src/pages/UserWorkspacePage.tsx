@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
 import type { AdminOverview, AppSettings, ProfileUpdatePayload, TitlePrefix, UserRole } from '../types';
 import { APP_GROUP_NAME } from '../constants/appBrand';
+import { defaultRolePermissions, roleLabels } from '../constants/permissions';
 
 const titleOptions: TitlePrefix[] = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
 
@@ -15,6 +16,7 @@ const defaultSettings: AppSettings = {
   group_name: APP_GROUP_NAME,
   notice: '',
   allow_registration: true,
+  role_permissions: defaultRolePermissions,
 };
 
 const defaultOverview: AdminOverview = {
@@ -24,6 +26,7 @@ const defaultOverview: AdminOverview = {
   users_count: 0,
   approved_users_count: 0,
   pending_users_count: 0,
+  dev_admin_users_count: 0,
   officer_users_count: 0,
   admin_users_count: 0,
   loan_contracts_count: 0,
@@ -34,15 +37,15 @@ const defaultOverview: AdminOverview = {
 };
 
 function getRoleLabel(role: UserRole) {
-  if (role === 'admin') {
-    return 'DevManager / ผู้ดูแลระบบ';
+  if (role === 'dev_admin') {
+    return 'Dev Admin';
   }
 
-  if (role === 'officer') {
-    return 'เจ้าหน้าที่';
+  if (role === 'member') {
+    return 'สมาชิกทั่วไป';
   }
 
-  return 'สมาชิกทั่วไป';
+  return roleLabels[role];
 }
 
 export function UserWorkspacePage() {
@@ -101,16 +104,18 @@ export function UserWorkspacePage() {
     return null;
   }
 
+  const currentSession = session;
+
   function renderRoleWidgets() {
-    if (session.user.role === 'admin') {
+    if (currentSession.user.role === 'dev_admin') {
       return (
         <>
           <div className="card role-widget-card role-widget-admin">
-            <h3 className="section-title">ศูนย์ควบคุม DevManager</h3>
+            <h3 className="section-title">ศูนย์ควบคุม Dev Admin</h3>
             <div className="dashboard-shortcuts">
               <Link to="/devmanager" className="shortcut-card shortcut-link-card">
-                <strong>เปิด DevManager</strong>
-                <div className="muted">จัดการสิทธิ์ผู้ใช้ ตั้งค่าระบบ และนำเข้าฐานข้อมูล</div>
+                <strong>ตั้งค่าสิทธิ์ทั้งระบบ</strong>
+                <div className="muted">กำหนดสิทธิ์แต่ละบทบาท จัดการผู้ใช้ และตั้งค่าระบบทั้งหมด</div>
               </Link>
               <Link to="/members" className="shortcut-card shortcut-link-card">
                 <strong>ทะเบียนสมาชิก</strong>
@@ -130,8 +135,8 @@ export function UserWorkspacePage() {
                 <div className="muted">ยังมี {overview.pending_users_count} บัญชีที่รอการตรวจสอบจากผู้ดูแลระบบ</div>
               </div>
               <div className="list-item">
-                <strong>เจ้าหน้าที่ในระบบ</strong>
-                <div className="muted">มีเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลงานปฏิบัติการรายวัน</div>
+                <strong>ผู้ดูแลสิทธิ์ในระบบ</strong>
+                <div className="muted">มี Dev Admin {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คน</div>
               </div>
             </div>
           </div>
@@ -139,7 +144,46 @@ export function UserWorkspacePage() {
       );
     }
 
-    if (session.user.role === 'officer') {
+    if (currentSession.user.role === 'admin') {
+      return (
+        <>
+          <div className="card role-widget-card role-widget-admin">
+            <h3 className="section-title">ศูนย์ควบคุมผู้ดูแลระบบ</h3>
+            <div className="dashboard-shortcuts">
+              {currentSession.permissions.access_devmanager && (
+                <Link to="/devmanager" className="shortcut-card shortcut-link-card">
+                  <strong>เปิด DevManager</strong>
+                  <div className="muted">ใช้งานเครื่องมือบริหารระบบตามสิทธิ์ที่ Dev Admin กำหนด</div>
+                </Link>
+              )}
+              {currentSession.permissions.manage_members && (
+                <Link to="/members" className="shortcut-card shortcut-link-card">
+                  <strong>ทะเบียนสมาชิก</strong>
+                  <div className="muted">ดูและแก้ไขข้อมูลสมาชิกทั้งหมด {overview.members_count} ราย</div>
+                </Link>
+              )}
+              {currentSession.permissions.manage_loans && (
+                <Link to="/loans" className="shortcut-card shortcut-link-card">
+                  <strong>สินเชื่อ</strong>
+                  <div className="muted">ติดตามสัญญาเงินกู้ {overview.loan_contracts_count} รายการ</div>
+                </Link>
+              )}
+            </div>
+          </div>
+          <div className="card role-widget-card">
+            <h3 className="section-title">ขอบเขตการดูแล</h3>
+            <div className="list">
+              <div className="list-item">
+                <strong>สิทธิ์ปัจจุบันของคุณ</strong>
+                <div className="muted">หน้าและเมนูที่เห็นอยู่ตอนนี้ถูกควบคุมจากตารางสิทธิ์ที่ Dev Admin กำหนด</div>
+              </div>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    if (currentSession.user.role === 'officer') {
       return (
         <>
           <div className="card role-widget-card role-widget-officer">
@@ -188,9 +232,9 @@ export function UserWorkspacePage() {
             <div className="list-item">
               <strong>สถานะบัญชี</strong>
               <div className="muted">
-                {session.user.approval_status === 'approved'
+                {currentSession.user.approval_status === 'approved'
                   ? 'บัญชีของคุณได้รับอนุมัติแล้ว สามารถใช้งานระบบตามสิทธิ์ของสมาชิกได้'
-                  : session.user.approval_status === 'pending'
+                  : currentSession.user.approval_status === 'pending'
                     ? 'บัญชียังอยู่ระหว่างการอนุมัติ กรุณารอการตรวจสอบจากผู้ดูแลระบบ'
                     : 'บัญชีถูกปฏิเสธการใช้งาน กรุณาติดต่อผู้ดูแลระบบ'}
               </div>
@@ -221,14 +265,14 @@ export function UserWorkspacePage() {
     setSaving(true);
 
     try {
-      const response = await updateProfile(session.access_token, form);
+      const response = await updateProfile(currentSession.access_token, form);
 
       if (!response.data) {
         throw new Error('ไม่พบข้อมูลผู้ใช้งานที่อัปเดตแล้ว');
       }
 
       setSessionData({
-        ...session,
+        ...currentSession,
         user: response.data,
       });
       setMessage(response.message);
@@ -262,7 +306,7 @@ export function UserWorkspacePage() {
     setChangingPassword(true);
 
     try {
-      const response = await changePassword(session.access_token, {
+      const response = await changePassword(currentSession.access_token, {
         current_password: passwordForm.current_password,
         new_password: passwordForm.new_password,
       });
@@ -295,16 +339,30 @@ export function UserWorkspacePage() {
 
         <div className="card">
           <h3 className="section-title">สิทธิ์และหน้าที่ของคุณ</h3>
-          {session.user.role === 'admin' ? (
+          {session.user.role === 'dev_admin' ? (
             <div className="list">
               <div className="list-item">
-                <strong>เข้าถึงข้อมูลผู้ดูแลระบบ</strong>
-                <div className="muted">คุณสามารถเข้าถึง DevManager, ทะเบียนสมาชิก, สินเชื่อ และกำหนดค่าระบบได้</div>
+                <strong>เข้าถึงการตั้งค่าสิทธิ์ทั้งระบบ</strong>
+                <div className="muted">คุณสามารถกำหนดสิทธิ์การเข้าถึงหน้าเว็บของทุกบทบาทได้จากหน้า DevManager</div>
               </div>
               <div className="actions compact-actions">
                 <Link to="/devmanager" className="btn btn-primary">เปิด DevManager</Link>
+                <Link to="/officer" className="btn btn-secondary">ศูนย์งานเจ้าหน้าที่</Link>
                 <Link to="/members" className="btn btn-secondary">ทะเบียนสมาชิก</Link>
                 <Link to="/loans" className="btn btn-secondary">สินเชื่อ</Link>
+              </div>
+            </div>
+          ) : session.user.role === 'admin' ? (
+            <div className="list">
+              <div className="list-item">
+                <strong>เข้าถึงข้อมูลผู้ดูแลระบบ</strong>
+                <div className="muted">คุณสามารถเข้าถึงหน้าต่าง ๆ ตามสิทธิ์ที่ Dev Admin กำหนดให้กับบทบาท Admin</div>
+              </div>
+              <div className="actions compact-actions">
+                {session.permissions.access_devmanager && <Link to="/devmanager" className="btn btn-primary">เปิด DevManager</Link>}
+                {session.permissions.view_officer_workspace && <Link to="/officer" className="btn btn-secondary">ศูนย์งานเจ้าหน้าที่</Link>}
+                {session.permissions.manage_members && <Link to="/members" className="btn btn-secondary">ทะเบียนสมาชิก</Link>}
+                {session.permissions.manage_loans && <Link to="/loans" className="btn btn-secondary">สินเชื่อ</Link>}
               </div>
             </div>
           ) : session.user.role === 'officer' ? (

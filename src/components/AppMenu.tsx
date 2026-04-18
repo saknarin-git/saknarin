@@ -31,9 +31,10 @@ export function AppMenu({ title }: AppMenuProps) {
     return null;
   }
 
-  const isAdmin = session.user.role === 'admin';
-  const isOfficer = session.user.role === 'officer';
-  const isStaff = isAdmin || isOfficer;
+  const canViewOfficerWorkspace = session.permissions.view_officer_workspace;
+  const canManageMembers = session.permissions.manage_members;
+  const canManageLoans = session.permissions.manage_loans;
+  const canAccessDevManager = session.permissions.access_devmanager;
 
   return (
     <>
@@ -75,31 +76,35 @@ export function AppMenu({ title }: AppMenuProps) {
         </div>
 
         <nav className="drawer-nav">
-          <Link to="/dashboard" className={`drawer-link ${location.pathname === '/dashboard' ? 'drawer-link-active' : ''}`}>
-            ภาพรวมระบบ
-          </Link>
-          <Link to="/workspace" className={`drawer-link ${location.pathname === '/workspace' ? 'drawer-link-active' : ''}`}>
-            แดชบอร์ดผู้ใช้งาน
-          </Link>
-          {isStaff && (
-            <>
-              <Link to="/officer" className={`drawer-link ${location.pathname === '/officer' ? 'drawer-link-active' : ''}`}>
-                ศูนย์งานเจ้าหน้าที่
-              </Link>
-              <Link to="/members" className={`drawer-link ${location.pathname === '/members' ? 'drawer-link-active' : ''}`}>
-                ทะเบียนสมาชิก
-              </Link>
-              <Link to="/loans" className={`drawer-link ${location.pathname === '/loans' ? 'drawer-link-active' : ''}`}>
-                สินเชื่อ
-              </Link>
-            </>
+          {session.permissions.view_system_dashboard && (
+            <Link to="/dashboard" className={`drawer-link ${location.pathname === '/dashboard' ? 'drawer-link-active' : ''}`}>
+              ภาพรวมระบบ
+            </Link>
           )}
-          {isAdmin && (
-            <>
-              <Link to="/devmanager" className={`drawer-link ${location.pathname === '/devmanager' ? 'drawer-link-active' : ''}`}>
-                DevManager
-              </Link>
-            </>
+          {session.permissions.view_user_workspace && (
+            <Link to="/workspace" className={`drawer-link ${location.pathname === '/workspace' ? 'drawer-link-active' : ''}`}>
+              แดชบอร์ดผู้ใช้งาน
+            </Link>
+          )}
+          {canViewOfficerWorkspace && (
+            <Link to="/officer" className={`drawer-link ${location.pathname === '/officer' ? 'drawer-link-active' : ''}`}>
+              ศูนย์งานเจ้าหน้าที่
+            </Link>
+          )}
+          {canManageMembers && (
+            <Link to="/members" className={`drawer-link ${location.pathname === '/members' ? 'drawer-link-active' : ''}`}>
+              ทะเบียนสมาชิก
+            </Link>
+          )}
+          {canManageLoans && (
+            <Link to="/loans" className={`drawer-link ${location.pathname === '/loans' ? 'drawer-link-active' : ''}`}>
+              สินเชื่อ
+            </Link>
+          )}
+          {canAccessDevManager && (
+            <Link to="/devmanager" className={`drawer-link ${location.pathname === '/devmanager' ? 'drawer-link-active' : ''}`}>
+              DevManager
+            </Link>
           )}
         </nav>
 

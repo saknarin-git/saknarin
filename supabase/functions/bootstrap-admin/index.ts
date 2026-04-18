@@ -17,7 +17,7 @@ Deno.serve(async (request) => {
     const { data: adminExists } = await adminClient
       .from('app_users')
       .select('id')
-      .eq('role', 'admin')
+      .eq('role', 'dev_admin')
       .eq('approval_status', 'approved')
       .maybeSingle();
 
@@ -55,7 +55,7 @@ Deno.serve(async (request) => {
       first_name,
       last_name,
       username: cleanUsername,
-      role: 'admin',
+      role: 'dev_admin',
       approval_status: 'approved',
       approved_at: new Date().toISOString(),
     });
