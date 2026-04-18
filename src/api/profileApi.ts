@@ -11,3 +11,17 @@ export async function updateProfile(token: string, payload: ProfileUpdatePayload
     token,
   );
 }
+
+export async function changePassword(
+  token: string,
+  payload: { current_password: string; new_password: string },
+) {
+  return apiRequest<{ success: boolean; message: string }>(
+    'user-profile',
+    {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    },
+    token,
+  );
+}

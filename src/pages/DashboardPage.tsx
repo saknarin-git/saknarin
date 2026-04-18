@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { InputField } from '../components/InputField';
-import { updateProfile } from '../api/profileApi';
+import { changePassword, updateProfile } from '../api/profileApi';
 import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
 import type { ProfileUpdatePayload, TitlePrefix } from '../types';
@@ -19,6 +19,14 @@ export function DashboardPage() {
   const [message, setMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
+  });
+  const [passwordMessage, setPasswordMessage] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   if (!session) {
     return null;
@@ -54,6 +62,42 @@ export function DashboardPage() {
       setErrorMessage(error instanceof Error ? error.message : 'ไม่สามารถบันทึกข้อมูลส่วนตัวได้');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handlePasswordSave = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setPasswordMessage('');
+    setPasswordError('');
+
+    if (!passwordForm.current_password || !passwordForm.new_password || !passwordForm.confirm_password) {
+      setPasswordError('กรุณากรอกรหัสผ่านให้ครบทุกช่อง');
+      return;
+    }
+
+    if (passwordForm.new_password.length < 6) {
+      setPasswordError('รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร');
+      return;
+    }
+
+    if (passwordForm.new_password !== passwordForm.confirm_password) {
+      setPasswordError('ยืนยันรหัสผ่านใหม่ไม่ตรงกัน');
+      return;
+    }
+
+    setChangingPassword(true);
+
+    try {
+      const response = await changePassword(session.access_token, {
+        current_password: passwordForm.current_password,
+        new_password: passwordForm.new_password,
+      });
+      setPasswordMessage(response.message);
+      setPasswordForm({ current_password: '', new_password: '', confirm_password: '' });
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'ไม่สามารถเปลี่ยนรหัสผ่านได้');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -120,6 +164,41 @@ export function DashboardPage() {
             <div className="actions">
               <button type="submit" className="btn btn-primary" disabled={saving}>
                 {saving ? 'กำลังบันทึก...' : 'บันทึกข้อมูลส่วนตัว'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div className="card">
+          <h3 className="section-title">เปลี่ยนรหัสผ่าน</h3>
+          <form onSubmit={handlePasswordSave}>
+            <InputField
+              label="รหัสผ่านเดิม"
+              type="password"
+              value={passwordForm.current_password}
+              onChange={(event) => setPasswordForm((current) => ({ ...current, current_password: event.target.value }))}
+              required
+            />
+            <InputField
+              label="รหัสผ่านใหม่"
+              type="password"
+              value={passwordForm.new_password}
+              onChange={(event) => setPasswordForm((current) => ({ ...current, new_password: event.target.value }))}
+              required
+            />
+            <InputField
+              label="ยืนยันรหัสผ่านใหม่"
+              type="password"
+              value={passwordForm.confirm_password}
+              onChange={(event) => setPasswordForm((current) => ({ ...current, confirm_password: event.target.value }))}
+              required
+            />
+            <div className="muted">รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร</div>
+            {passwordMessage && <div className="notice">{passwordMessage}</div>}
+            {passwordError && <div className="alert-error">{passwordError}</div>}
+            <div className="actions">
+              <button type="submit" className="btn btn-primary" disabled={changingPassword}>
+                {changingPassword ? 'กำลังเปลี่ยนรหัสผ่าน...' : 'เปลี่ยนรหัสผ่าน'}
               </button>
             </div>
           </form>
