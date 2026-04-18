@@ -19,13 +19,16 @@
 
 ## ตั้งค่าก่อนใช้งาน
 1. สร้างไฟล์ .env จาก .env.example
-2. ใส่ค่า VITE_SUPABASE_ANON_KEY จริงของโปรเจกต์
-3. รัน SQL ใน Supabase จากไฟล์ supabase/sql/001_init_schema.sql
-4. เพิ่มข้อมูลสมาชิกจริงลงตาราง members
-5. ตั้ง GitHub Secrets ดังนี้
+2. ใส่ค่า VITE_SUPABASE_ANON_KEY ของโปรเจกต์ โดยต้องเป็น public anon key หรือ publishable key เท่านั้น
+3. ห้ามนำ secret key, service role key หรือ key ที่ขึ้นต้นด้วย sb_secret_ มาใส่ใน frontend
+4. รัน SQL ใน Supabase จากไฟล์ supabase/sql/001_init_schema.sql
+5. เพิ่มข้อมูลสมาชิกจริงลงตาราง members
+6. ตั้ง GitHub Secrets ดังนี้
    - VITE_SUPABASE_ANON_KEY
    - SUPABASE_ACCESS_TOKEN
-6. เปิด GitHub Pages แบบ Source = GitHub Actions
+7. เปิด GitHub Pages แบบ Source = GitHub Actions
+
+หมายเหตุ: ฝั่ง frontend ในโปรเจกต์นี้จะส่งค่า VITE_SUPABASE_ANON_KEY ไปกับ request ไปยัง Supabase Edge Functions ดังนั้นค่านี้ต้องเป็น public key ที่เปิดเผยได้เท่านั้น
 
 ## คำสั่งใช้งาน
 ```bash

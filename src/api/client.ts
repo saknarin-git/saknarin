@@ -1,5 +1,6 @@
 const supabaseUrl =
   import.meta.env.VITE_SUPABASE_URL ?? 'https://zpknotoujmvkeqeoqgyf.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 const functionsBaseUrl = `${supabaseUrl}/functions/v1`;
 
@@ -9,6 +10,10 @@ export async function apiRequest<T>(
   token?: string,
 ): Promise<T> {
   const headers = new Headers(options.headers ?? {});
+
+  if (supabaseAnonKey && !headers.has('apikey')) {
+    headers.set('apikey', supabaseAnonKey);
+  }
 
   if (options.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
