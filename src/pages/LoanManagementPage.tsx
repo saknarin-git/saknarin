@@ -37,6 +37,7 @@ const defaultForm: LoanFormState = {
 
 export function LoanManagementPage() {
   const { session, logout } = useAuth();
+  const accessToken = session?.access_token ?? '';
   const [loans, setLoans] = useState<LoanRegistryRecord[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,7 @@ export function LoanManagementPage() {
     setErrorMessage('');
 
     try {
-      const response = await fetchLoans(session.access_token, nextSearch);
+      const response = await fetchLoans(accessToken, nextSearch);
       setLoans(response.data.loans);
 
       if (response.data.loans.length === 0) {
@@ -106,7 +107,7 @@ export function LoanManagementPage() {
     setErrorMessage('');
 
     try {
-      const response = await updateLoanRecord(session.access_token, {
+      const response = await updateLoanRecord(accessToken, {
         contract_no: form.contract_no,
         member_no: form.member_no,
         title: form.title,
@@ -139,7 +140,7 @@ export function LoanManagementPage() {
     setErrorMessage('');
 
     try {
-      const response = await deleteLoanRecord(session.access_token, contractNo);
+      const response = await deleteLoanRecord(accessToken, contractNo);
       setMessage(response.message);
       await loadLoans();
     } catch (error) {

@@ -27,6 +27,7 @@ const defaultForm: MemberFormState = {
 
 export function MemberRegistryPage() {
   const { session, logout } = useAuth();
+  const accessToken = session?.access_token ?? '';
   const [members, setMembers] = useState<MemberRegistryRecord[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -54,7 +55,7 @@ export function MemberRegistryPage() {
     setErrorMessage('');
 
     try {
-      const response = await fetchMembers(session.access_token, nextSearch);
+      const response = await fetchMembers(accessToken, nextSearch);
       setMembers(response.data.members);
 
       if (response.data.members.length === 0) {
@@ -91,7 +92,7 @@ export function MemberRegistryPage() {
     setErrorMessage('');
 
     try {
-      const response = await updateMemberRecord(session.access_token, form);
+      const response = await updateMemberRecord(accessToken, form);
       setMessage(response.message);
       await loadMembers();
     } catch (error) {
@@ -115,7 +116,7 @@ export function MemberRegistryPage() {
     setErrorMessage('');
 
     try {
-      const response = await deleteMemberRecord(session.access_token, memberNo);
+      const response = await deleteMemberRecord(accessToken, memberNo);
       setMessage(response.message);
       await loadMembers();
     } catch (error) {
