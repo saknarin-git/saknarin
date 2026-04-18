@@ -51,5 +51,5 @@ jobs:
 
       - name: Deploy protected functions
         run: |
-          supabase functions deploy user-profile --project-ref "$PROJECT_REF"
-          supabase functions deploy admin-users --project-ref "$PROJECT_REF"
+          supabase functions deploy user-profile --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy admin-users --project-ref "$PROJECT_REF" --no-verify-jwt
