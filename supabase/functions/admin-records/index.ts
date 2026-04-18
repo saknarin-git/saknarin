@@ -129,7 +129,8 @@ async function listLoans(search: string, page: number, pageSize: number, status:
   let query = adminClient
     .from('loan_contracts')
     .select('contract_no, member_no, title, first_name, last_name, loan_amount, outstanding_amount, status, contract_date, guarantor_1, guarantor_2, created_at, updated_at', { count: 'exact' })
-    .order('contract_date', { ascending: false, nullsFirst: false })
+    .order('member_no', { ascending: true })
+    .order('contract_no', { ascending: true })
     .range(from, to);
 
   if (search) {
