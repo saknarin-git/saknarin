@@ -52,7 +52,7 @@ export async function saveLoanPayment(
 export async function updateLoanWorkspaceConfig(
   token: string,
   payload: {
-    loan_types: Array<Pick<LoanTypeRecord, 'id' | 'name' | 'monthly_interest_rate' | 'active'>>;
+    loan_types: Array<Pick<LoanTypeRecord, 'id' | 'name' | 'annual_interest_rate' | 'active'>>;
     working_calendar_year: number;
     working_dates: LoanWorkspaceConfig['working_dates'];
   },

@@ -119,7 +119,7 @@ function parseInstallmentCount(value: unknown, maxAllowed: number) {
 async function getConfig(targetYear = new Date().getFullYear()) {
   const [{ data: settings, error: settingsError }, { data: loanTypes, error: loanTypesError }] = await Promise.all([
     adminClient.from('app_settings').select('loan_working_days').eq('id', 1).single(),
-    adminClient.from('loan_types').select('id, name, monthly_interest_rate, active, created_at, updated_at').order('active', { ascending: false }).order('name', { ascending: true }),
+    adminClient.from('loan_types').select('id, name, annual_interest_rate, active, created_at, updated_at').order('active', { ascending: false }).order('name', { ascending: true }),
   ]);
 
   if (settingsError || !settings) {
@@ -245,15 +245,15 @@ async function getPaymentWorkspace(memberNo: string, mode: LoanPaymentMode, paid
 
   const normalizedContracts = contracts.map((contract) => {
     const loanType = (contract.loan_type_id ? activeTypeMap.get(contract.loan_type_id) : undefined) ?? fallbackLoanType;
-    const monthlyInterestRate = Number(loanType?.monthly_interest_rate ?? 0);
-    const currentInterestDue = buildInterestPerInstallment(Number(contract.outstanding_amount ?? 0), monthlyInterestRate);
+    const annualInterestRate = Number(loanType?.annual_interest_rate ?? 0);
+    const currentInterestDue = buildInterestPerInstallment(Number(contract.outstanding_amount ?? 0), annualInterestRate);
     const applicableWorkingDates = buildApplicableWorkingDates(config.working_dates, contract.contract_date, paidDateText);
     const totalDueInstallments = Math.max(0, applicableWorkingDates.length - (installmentsPaidMap.get(contract.contract_no) ?? 0));
     const overdueInstallments = Math.max(0, totalDueInstallments - 1);
     return {
       ...contract,
       loan_type_name: loanType?.name ?? 'ไม่ระบุประเภท',
-      monthly_interest_rate: monthlyInterestRate,
+      annual_interest_rate: annualInterestRate,
       due_installments_count: totalDueInstallments,
       overdue_interest_installments: overdueInstallments,
       current_interest_due: currentInterestDue,
@@ -310,8 +310,8 @@ async function savePayment(payload: Record<string, unknown>, currentUserId: stri
     : Number(payload.interest_installments_paid);
   const interestInstallmentsPaid = parseInstallmentCount(requestedInstallments, totalDueInstallments);
   const loanType = (contract.loan_type_id ? loanTypeMap.get(contract.loan_type_id) : undefined) ?? fallbackLoanType;
-  const monthlyInterestRate = Number(loanType?.monthly_interest_rate ?? 0);
-  const currentInterestDue = buildInterestPerInstallment(outstandingAmount, monthlyInterestRate);
+  const annualInterestRate = Number(loanType?.annual_interest_rate ?? 0);
+  const currentInterestDue = buildInterestPerInstallment(outstandingAmount, annualInterestRate);
   const interestPaid = roundMoney(currentInterestDue * interestInstallmentsPaid);
   const requestedPrincipalPaid = parseOptionalMoney(payload.principal_paid);
   const principalPaid = paymentMode === 'settlement' && requestedPrincipalPaid === 0
@@ -402,7 +402,7 @@ async function updateConfig(payload: Record<string, unknown>) {
     const source = item && typeof item === 'object' ? item as Record<string, unknown> : {};
     const name = String(source.name ?? '').trim();
     const normalizedName = name.toLocaleLowerCase('th-TH');
-    const interestRate = Number(source.monthly_interest_rate ?? 0);
+    const interestRate = Number(source.annual_interest_rate ?? 0);
     if (!name) {
       throw new Error('กรุณากรอกชื่อประเภทเงินกู้ให้ครบถ้วน');
     }
@@ -419,7 +419,7 @@ async function updateConfig(payload: Record<string, unknown>) {
     return {
       id: String(source.id ?? '').trim() || crypto.randomUUID(),
       name,
-      monthly_interest_rate: roundMoney(interestRate),
+      annual_interest_rate: roundMoney(interestRate),
       active: Boolean(source.active),
       updated_at: new Date().toISOString(),
     };
@@ -435,14 +435,14 @@ async function updateConfig(payload: Record<string, unknown>) {
 
   const { error: settingsError } = await adminClient
     .from('app_settings')
-    .update({
+    .upsert({
+      id: 1,
       loan_working_days: {
         year: workingCalendar.working_calendar_year,
         months: workingCalendar.working_dates,
       },
       updated_at: new Date().toISOString(),
-    })
-    .eq('id', 1);
+    });
 
   if (settingsError) {
     throw settingsError;

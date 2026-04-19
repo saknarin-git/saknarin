@@ -1,13 +1,13 @@
 create table if not exists public.loan_types (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
-  monthly_interest_rate numeric(8, 4) not null default 1,
+  annual_interest_rate numeric(8, 4) not null default 12,
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
-insert into public.loan_types (name, monthly_interest_rate, active)
+insert into public.loan_types (name, annual_interest_rate, active)
 values ('เงินกู้ทั่วไป', 12, true)
 on conflict (name) do nothing;
 

@@ -886,6 +886,11 @@ textarea {
   align-items: flex-start;
 }
 
+.loan-settings-actions {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
 .loan-type-editor {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(180px, 0.7fr) auto;

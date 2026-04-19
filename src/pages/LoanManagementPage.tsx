@@ -501,7 +501,7 @@ export function LoanManagementPage() {
       {
         id: crypto.randomUUID(),
         name: draftName,
-        monthly_interest_rate: 12,
+        annual_interest_rate: 12,
         active: true,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
@@ -509,7 +509,7 @@ export function LoanManagementPage() {
     ]));
   }
 
-  function updateLoanTypeField(id: string, field: 'name' | 'monthly_interest_rate' | 'active', value: string | number | boolean) {
+  function updateLoanTypeField(id: string, field: 'name' | 'annual_interest_rate' | 'active', value: string | number | boolean) {
     setLoanTypes((current) => current.map((item) => (
       item.id === id
         ? {
@@ -541,7 +541,7 @@ export function LoanManagementPage() {
         loan_types: loanTypes.map((item) => ({
           id: item.id,
           name: item.name,
-          monthly_interest_rate: Number(item.monthly_interest_rate),
+          annual_interest_rate: Number(item.annual_interest_rate),
           active: item.active,
         })),
         working_calendar_year: workingCalendarYear,
@@ -629,7 +629,7 @@ export function LoanManagementPage() {
               <div className="loan-payment-summary-card">
                 <span>ประเภทเงินกู้</span>
                 <strong>{selectedPaymentContract.loan_type_name}</strong>
-                <div className="muted">ดอกเบี้ยรายปี {formatCurrency(selectedPaymentContract.monthly_interest_rate)}%</div>
+                <div className="muted">ดอกเบี้ยรายปี {formatCurrency(selectedPaymentContract.annual_interest_rate)}%</div>
               </div>
               <div className="loan-payment-summary-card">
                 <span>ดอกเบี้ยงวดปัจจุบัน</span>
@@ -685,7 +685,7 @@ export function LoanManagementPage() {
                   <div className="topbar">
                     <div>
                       <strong>{contract.contract_no}</strong>
-                      <div className="muted">{contract.loan_type_name} | ดอกเบี้ยรายปี {formatCurrency(contract.monthly_interest_rate)}%</div>
+                      <div className="muted">{contract.loan_type_name} | ดอกเบี้ยรายปี {formatCurrency(contract.annual_interest_rate)}%</div>
                     </div>
                     {index === 0 && <span className="badge badge-approved">สัญญาที่ใช้ทำรายการก่อน</span>}
                   </div>
@@ -818,8 +818,15 @@ export function LoanManagementPage() {
               <h3 className="section-title">ประเภทเงินกู้และอัตราดอกเบี้ย</h3>
               <div className="muted">กำหนดอัตราดอกเบี้ยรายปีของแต่ละประเภท ระบบจะแปลงเป็นดอกเบี้ย 1 งวดโดยหาร 12 อัตโนมัติ</div>
             </div>
-            <button type="button" className="btn btn-secondary" onClick={handleAddLoanType}>เพิ่มประเภทเงินกู้</button>
+            <div className="actions compact-actions loan-settings-actions">
+              <button type="button" className="btn btn-secondary" onClick={handleAddLoanType}>เพิ่มประเภทเงินกู้</button>
+              <button type="button" className="btn btn-primary" disabled={savingConfig} onClick={() => void handleSaveConfig()}>
+                {savingConfig ? 'กำลังบันทึก...' : 'บันทึกประเภทเงินกู้'}
+              </button>
+            </div>
           </div>
+          {message && <div className="notice">{message}</div>}
+          {errorMessage && <div className="alert-error">{errorMessage}</div>}
           {loadingConfig ? (
             <p className="muted">กำลังโหลดการตั้งค่าสินเชื่อ...</p>
           ) : (
@@ -827,7 +834,7 @@ export function LoanManagementPage() {
               {loanTypes.map((loanType) => (
                 <div key={loanType.id} className="list-item loan-type-editor">
                   <InputField label="ชื่อประเภทเงินกู้" value={loanType.name} onChange={(event) => updateLoanTypeField(loanType.id, 'name', event.target.value)} />
-                  <InputField label="ดอกเบี้ยรายปี (%)" value={String(loanType.monthly_interest_rate)} onChange={(event) => updateLoanTypeField(loanType.id, 'monthly_interest_rate', Number(event.target.value))} />
+                  <InputField label="ดอกเบี้ยรายปี (%)" value={String(loanType.annual_interest_rate)} onChange={(event) => updateLoanTypeField(loanType.id, 'annual_interest_rate', Number(event.target.value))} />
                   <label className="loan-type-active-toggle">
                     <input type="checkbox" checked={loanType.active} onChange={(event) => updateLoanTypeField(loanType.id, 'active', event.target.checked)} />
                     <span>เปิดใช้งานประเภทนี้</span>
@@ -853,7 +860,7 @@ export function LoanManagementPage() {
           {errorMessage && <div className="alert-error">{errorMessage}</div>}
           <div className="actions">
             <button type="button" className="btn btn-primary" disabled={savingConfig} onClick={() => void handleSaveConfig()}>
-              {savingConfig ? 'กำลังบันทึก...' : 'บันทึกการตั้งค่า'}
+              {savingConfig ? 'กำลังบันทึก...' : 'บันทึกวันทำการกลุ่ม'}
             </button>
           </div>
         </section>

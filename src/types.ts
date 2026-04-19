@@ -153,7 +153,7 @@ export interface LoanRegistryRecord {
 export interface LoanTypeRecord {
   id: string;
   name: string;
-  monthly_interest_rate: number;
+  annual_interest_rate: number;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -169,7 +169,7 @@ export interface LoanPaymentCandidate {
   last_name: string;
   loan_type_id: string | null;
   loan_type_name: string;
-  monthly_interest_rate: number;
+  annual_interest_rate: number;
   loan_amount: number;
   outstanding_amount: number;
   overdue_interest_installments: number;
