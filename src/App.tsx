@@ -11,6 +11,14 @@ import { useAuth } from './contexts/AuthContext';
 import type { PermissionKey } from './types';
 
 function getDefaultAuthorizedPath(session: NonNullable<ReturnType<typeof useAuth>['session']>) {
+  if (session.user.role === 'dev_admin' && session.permissions.access_devmanager) {
+    return '/devmanager';
+  }
+
+  if (session.user.role === 'admin' && session.permissions.view_system_dashboard) {
+    return '/dashboard';
+  }
+
   if (session.user.role === 'officer' && session.permissions.view_officer_workspace) {
     return '/officer';
   }

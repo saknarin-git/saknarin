@@ -10,7 +10,7 @@ export const roleLevels: Record<UserRole, number> = {
 export const permissionLabels: Record<PermissionKey, string> = {
   view_system_dashboard: 'เข้าหน้า ภาพรวมระบบ',
   view_user_workspace: 'เข้าหน้า ข้อมูลส่วนตัว',
-  view_officer_workspace: 'เข้าหน้า ศูนย์งานเจ้าหน้าที่',
+  view_officer_workspace: 'เข้าหน้า OfficerManager',
   manage_members: 'เข้าหน้า ทะเบียนสมาชิก',
   manage_loans: 'เข้าหน้า สินเชื่อ',
   access_devmanager: 'เข้าหน้า DevManager',
@@ -18,8 +18,8 @@ export const permissionLabels: Record<PermissionKey, string> = {
 
 export const roleLabels: Record<UserRole, string> = {
   dev_admin: 'DevManager',
-  admin: 'Admin',
-  officer: 'เจ้าหน้าที่',
+  admin: 'AdminManager',
+  officer: 'OfficerManager',
   member: 'สมาชิก',
 };
 

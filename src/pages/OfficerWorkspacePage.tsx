@@ -85,7 +85,7 @@ export function OfficerWorkspacePage() {
     session.permissions.view_system_dashboard
       ? {
           path: '/dashboard',
-          label: 'ศูนย์งาน Admin',
+          label: 'AdminManager',
           description: 'ดูภาพรวมระบบและสถานะงานจากมุมมองผู้กำกับดูแลระดับสูงกว่า',
         }
       : null,
@@ -93,17 +93,17 @@ export function OfficerWorkspacePage() {
 
   return (
     <div className="page-shell">
-      <AppMenu title="ศูนย์งานเจ้าหน้าที่" />
+      <AppMenu title="OfficerManager" />
 
       <div className="hero">
-        <h1>ศูนย์งานเจ้าหน้าที่</h1>
+        <h1>OfficerManager</h1>
         <p>รวมเมนูทำงานของผู้ใช้ระดับ 3 ไว้ในหน้าเดียว เพื่อเปิดงานสมาชิก สินเชื่อ และข้อมูลส่วนตัวได้แบบรวมศูนย์เหมือน DevManager</p>
       </div>
 
       <div className="devmanager-section-stack">
         <section className="card officer-focus-card">
           <div className="eyebrow">ระดับ 3</div>
-          <h3 className="section-title">เมนูหลักเจ้าหน้าที่ของ {settings.group_name || APP_GROUP_NAME}</h3>
+          <h3 className="section-title">เมนูหลัก OfficerManager ของ {settings.group_name || APP_GROUP_NAME}</h3>
           <p className="muted">ใช้หน้านี้เป็นจุดเริ่มต้นของงานประจำวัน เลือกการ์ดที่ต้องการเพื่อเข้าไปทำรายการหรือแก้ไขข้อมูลได้ทันที</p>
           <div className="dashboard-shortcuts">
             {officerShortcutItems.map((item) => (
@@ -114,7 +114,7 @@ export function OfficerWorkspacePage() {
             ))}
           </div>
           {!session.permissions.manage_members && !session.permissions.manage_loans && (
-            <div className="notice">บทบาทของคุณเข้าหน้าศูนย์งานเจ้าหน้าที่ได้ แต่ยังไม่ได้รับสิทธิ์จัดการทะเบียนสมาชิกหรือสินเชื่อ</div>
+            <div className="notice">บทบาทของคุณเข้า OfficerManager ได้ แต่ยังไม่ได้รับสิทธิ์จัดการทะเบียนสมาชิกหรือสินเชื่อ</div>
           )}
         </section>
 
@@ -159,12 +159,12 @@ export function OfficerWorkspacePage() {
           </section>
 
           <section className="card">
-            <h3 className="section-title">ตัวเลขอ้างอิงสำหรับเจ้าหน้าที่</h3>
+            <h3 className="section-title">ตัวเลขอ้างอิงสำหรับ OfficerManager</h3>
             <div className="stats-row">
               <div className="stat-chip">สมาชิกทั้งหมด {overview.members_count}</div>
               <div className="stat-chip">สมาชิกใช้งาน {overview.active_members_count}</div>
               <div className="stat-chip">สินเชื่อทั้งหมด {overview.loan_contracts_count}</div>
-              <div className="stat-chip">เจ้าหน้าที่ในระบบ {overview.officer_users_count}</div>
+              <div className="stat-chip">OfficerManager ในระบบ {overview.officer_users_count}</div>
             </div>
             <div className="notice">ใช้ตัวเลขชุดนี้เป็นจุดเริ่มต้นก่อนเข้าไปจัดการข้อมูลเชิงลึกรายสมาชิกหรือรายสัญญา</div>
           </section>

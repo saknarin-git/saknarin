@@ -189,11 +189,11 @@ export function DevManagerPage() {
     }
 
     if (role === 'admin') {
-      return 'ตั้งเป็น Admin';
+      return 'ตั้งเป็น AdminManager';
     }
 
     if (role === 'officer') {
-      return 'ตั้งเป็นเจ้าหน้าที่';
+      return 'ตั้งเป็น OfficerManager';
     }
 
     return 'ตั้งเป็นสมาชิก';
@@ -418,7 +418,7 @@ export function DevManagerPage() {
               </div>
               <div className="list-item">
                 <strong>จำนวนผู้ดูแลในระบบ</strong>
-                <div className="muted">มี DevManager {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
+                <div className="muted">มี DevManager {overview.dev_admin_users_count} คน, AdminManager {overview.admin_users_count} คน และ OfficerManager {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
               </div>
               <div className="list-item">
                 <strong>ขอบเขตหน้าที่</strong>
@@ -527,7 +527,7 @@ export function DevManagerPage() {
               </div>
             </div>
           ) : (
-            <div className="notice">ตารางสิทธิ์นี้ดูได้อย่างเดียวสำหรับ Admin ปกติ การแก้ไขทำได้เฉพาะ DevManager</div>
+            <div className="notice">ตารางสิทธิ์นี้ดูได้อย่างเดียวสำหรับ AdminManager การแก้ไขทำได้เฉพาะ DevManager</div>
           )}
         </div>
       </section>

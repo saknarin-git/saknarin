@@ -60,7 +60,7 @@ export function SystemOverviewPanel({
         <section className="card metric-card">
           <div className="metric-label">บุคลากรระบบ</div>
           <div className="metric-value">{overview.dev_admin_users_count + overview.admin_users_count + overview.officer_users_count}</div>
-          <div className="metric-subtext">DevManager {overview.dev_admin_users_count} | Admin {overview.admin_users_count} | เจ้าหน้าที่ {overview.officer_users_count}</div>
+          <div className="metric-subtext">DevManager {overview.dev_admin_users_count} | AdminManager {overview.admin_users_count} | OfficerManager {overview.officer_users_count}</div>
         </section>
       </div>
 

@@ -78,7 +78,7 @@ export function AppMenu({ title }: AppMenuProps) {
         <nav className="drawer-nav">
           {session.permissions.view_system_dashboard && (
             <Link to="/dashboard" className={`drawer-link ${location.pathname === '/dashboard' ? 'drawer-link-active' : ''}`}>
-              ภาพรวมระบบ
+              AdminManager
             </Link>
           )}
           {session.permissions.view_user_workspace && (
@@ -88,7 +88,7 @@ export function AppMenu({ title }: AppMenuProps) {
           )}
           {canViewOfficerWorkspace && (
             <Link to="/officer" className={`drawer-link ${location.pathname === '/officer' ? 'drawer-link-active' : ''}`}>
-              ศูนย์งานเจ้าหน้าที่
+              OfficerManager
             </Link>
           )}
           {canManageMembers && (

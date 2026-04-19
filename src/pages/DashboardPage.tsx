@@ -80,8 +80,8 @@ export function DashboardPage() {
     session.permissions.view_officer_workspace
       ? {
           path: '/officer',
-          label: 'ศูนย์งานเจ้าหน้าที่',
-          description: 'เปิดหน้ารวมงานปฏิบัติการเพื่อประสานงานกับทีมเจ้าหน้าที่',
+          label: 'OfficerManager',
+          description: 'เปิดหน้ารวมงานปฏิบัติการเพื่อประสานงานกับทีม OfficerManager',
         }
       : null,
     session.permissions.access_devmanager
@@ -102,11 +102,11 @@ export function DashboardPage() {
 
   return (
     <div className="page-shell">
-      <AppMenu title="ศูนย์งาน Admin" />
+      <AppMenu title="AdminManager" />
 
       <div className="hero">
-        <h1>ศูนย์งาน Admin</h1>
-        <p>รวมเมนูหลักของผู้ใช้ระดับ 2 ไว้ในหน้าเดียว เพื่อเข้าถึงงานสมาชิก สินเชื่อ การกำกับงานเจ้าหน้าที่ และภาพรวมระบบได้เร็วขึ้น</p>
+        <h1>AdminManager</h1>
+        <p>รวมเมนูหลักของผู้ใช้ระดับ 2 ไว้ในหน้าเดียว เพื่อเข้าถึงงานสมาชิก สินเชื่อ การกำกับงาน OfficerManager และภาพรวมระบบได้เร็วขึ้น</p>
       </div>
 
       {errorMessage && <div className="alert-error">{errorMessage}</div>}
@@ -114,8 +114,8 @@ export function DashboardPage() {
       <div className="devmanager-section-stack">
         <section className="card officer-focus-card">
           <div className="eyebrow">ระดับ 2</div>
-          <h3 className="section-title">เมนูหลัก Admin</h3>
-          <p className="muted">ใช้หน้านี้เป็นจุดรวมศูนย์สำหรับงานประจำวันของผู้ดูแลระดับ 2 โดยไม่ต้องไล่เปิดเมนูทีละหน้า</p>
+          <h3 className="section-title">เมนูหลัก AdminManager</h3>
+          <p className="muted">ใช้หน้านี้เป็นจุดรวมศูนย์สำหรับงานประจำวันของ AdminManager โดยไม่ต้องไล่เปิดเมนูทีละหน้า</p>
           <div className="dashboard-shortcuts">
             {adminShortcutItems.map((item) => (
               <Link key={item.path} to={item.path} className="shortcut-card shortcut-link-card devmanager-card-link">
@@ -138,11 +138,11 @@ export function DashboardPage() {
           </section>
 
           <section className="card">
-            <h3 className="section-title">ขอบเขตหน้าที่ของ Admin</h3>
+            <h3 className="section-title">ขอบเขตหน้าที่ของ AdminManager</h3>
             <div className="list">
               <div className="list-item">
                 <strong>กำกับงานปฏิบัติการ</strong>
-                <div className="muted">ดูแลคุณภาพข้อมูลสมาชิกและสินเชื่อ พร้อมประสานงานกับเจ้าหน้าที่เมื่อมีงานคงค้าง</div>
+                <div className="muted">ดูแลคุณภาพข้อมูลสมาชิกและสินเชื่อ พร้อมประสานงานกับ OfficerManager เมื่อมีงานคงค้าง</div>
               </div>
               <div className="list-item">
                 <strong>ติดตามการอนุมัติ</strong>
@@ -160,7 +160,7 @@ export function DashboardPage() {
       <SystemOverviewPanel
         overview={overview}
         settings={settings}
-        title="ภาพรวมระบบสำหรับ Admin"
+        title="ภาพรวมระบบสำหรับ AdminManager"
         description="ใช้ดูภาพรวมของสมาชิก บัญชีผู้ใช้งาน และสินเชื่อจากข้อมูลล่าสุด เพื่อประกอบการตัดสินใจในงานกำกับดูแล"
       />
     </div>
