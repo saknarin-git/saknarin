@@ -80,6 +80,7 @@ export function DevManagerPage() {
   const [loanPreview, setLoanPreview] = useState<CsvPreviewSummary | null>(null);
   const [importingMembers, setImportingMembers] = useState(false);
   const [importingLoans, setImportingLoans] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const activeSection = getSectionFromPath(location.pathname);
 
   if (!activeSection) {
@@ -139,6 +140,7 @@ export function DevManagerPage() {
     }
 
     try {
+      setSavingSettings(true);
       const result = await updateSettings(
         session.access_token,
         isDevAdmin
@@ -150,8 +152,11 @@ export function DevManagerPage() {
             } as AppSettings,
       );
       setMessage(result.message);
+      await loadPanel();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'บันทึกการตั้งค่าไม่สำเร็จ');
+    } finally {
+      setSavingSettings(false);
     }
   }
 
@@ -419,6 +424,7 @@ export function DevManagerPage() {
           </div>
           <Link to="/devmanager" className="btn btn-secondary">กลับเมนู DevManager</Link>
         </div>
+        <div className="notice">เมื่อปรับสิทธิ์หรือค่าระบบเสร็จ ให้กดปุ่มบันทึกการตั้งค่าเพื่อเขียนค่าลงระบบ</div>
         <label className="field">
           <span>ชื่อกลุ่ม</span>
           <input
@@ -447,8 +453,8 @@ export function DevManagerPage() {
           </select>
         </label>
         <div className="actions">
-          <button type="button" className="btn btn-primary" onClick={handleSaveSettings}>
-            บันทึกการตั้งค่า
+          <button type="button" className="btn btn-primary" onClick={handleSaveSettings} disabled={savingSettings}>
+            {savingSettings ? 'กำลังบันทึกการตั้งค่า...' : 'บันทึกการตั้งค่า'}
           </button>
         </div>
 
@@ -497,6 +503,11 @@ export function DevManagerPage() {
                 </div>
               ))}
               <div className="notice">คุณกำหนดสิทธิ์ของระดับ 1 ได้แล้ว แต่ระบบจะบังคับให้ระดับ 1 ต้องเข้าหน้า DevManager ได้เสมอเพื่อไม่ให้ล็อกการตั้งค่าเอง</div>
+              <div className="actions">
+                <button type="button" className="btn btn-primary" onClick={handleSaveSettings} disabled={savingSettings}>
+                  {savingSettings ? 'กำลังบันทึกการตั้งค่า...' : 'บันทึกสิทธิ์การเข้าถึงหน้าเว็บ'}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="notice">ตารางสิทธิ์นี้ดูได้อย่างเดียวสำหรับ Admin ปกติ การแก้ไขทำได้เฉพาะ DevManager</div>
