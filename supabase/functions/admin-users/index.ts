@@ -1,6 +1,6 @@
 import '../_shared/edge-runtime.d.ts';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { adminClient, ensureDevAdmin, ensurePermission, getDefaultRolePermissions, getRolePermissionsMatrix, normalizeRolePermissions } from '../_shared/supabaseAdmin.ts';
+import { adminClient, canManageRole, ensurePermission, getDefaultRolePermissions, getRolePermissionsMatrix, normalizeRolePermissions } from '../_shared/supabaseAdmin.ts';
 
 type ImportType = 'members' | 'loan-contracts';
 
@@ -367,8 +367,26 @@ Deno.serve(async (request) => {
         return jsonResponse({ success: false, message: 'สิทธิ์ผู้ใช้ไม่ถูกต้อง' }, 400);
       }
 
+      const { data: targetUser, error: targetUserError } = await adminClient
+        .from('app_users')
+        .select('id, role, approval_status')
+        .eq('id', userId)
+        .single();
+
+      if (targetUserError || !targetUser) {
+        return jsonResponse({ success: false, message: 'ไม่พบผู้ใช้งานที่ต้องการแก้ไขสิทธิ์' }, 404);
+      }
+
+      if (targetUser.id === userProfile.id) {
+        return jsonResponse({ success: false, message: 'ไม่สามารถเลื่อนหรือลดระดับสิทธิ์ของตนเองได้' }, 403);
+      }
+
+      if (!canManageRole(userProfile.role, targetUser.role, role)) {
+        return jsonResponse({ success: false, message: 'คุณเปลี่ยนสิทธิ์ได้เฉพาะผู้ใช้ที่มีระดับต่ำกว่าคุณ และระดับปลายทางต้องต่ำกว่าคุณเสมอ' }, 403);
+      }
+
       if (role === 'dev_admin' && userProfile.role !== 'dev_admin') {
-        return jsonResponse({ success: false, message: 'เฉพาะ Dev Admin เท่านั้นที่กำหนด Dev Admin ได้' }, 403);
+        return jsonResponse({ success: false, message: 'เฉพาะ DevManager เท่านั้นที่กำหนด DevManager ได้' }, 403);
       }
 
       const { error } = await adminClient
@@ -395,7 +413,7 @@ Deno.serve(async (request) => {
       const nextRolePermissions = normalizeRolePermissions(settings.role_permissions ?? getDefaultRolePermissions());
 
       if (settings.role_permissions && !isDevAdmin) {
-        return jsonResponse({ success: false, message: 'เฉพาะ Dev Admin เท่านั้นที่ตั้งค่าสิทธิ์ของแต่ละบทบาทได้' }, 403);
+        return jsonResponse({ success: false, message: 'เฉพาะ DevManager เท่านั้นที่ตั้งค่าสิทธิ์ของแต่ละบทบาทได้' }, 403);
       }
 
       const currentMatrix = await getRolePermissionsMatrix();

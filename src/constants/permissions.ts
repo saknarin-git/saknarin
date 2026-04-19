@@ -1,5 +1,12 @@
 import type { PermissionKey, PermissionSet, RolePermissionsMatrix, UserRole } from '../types';
 
+export const roleLevels: Record<UserRole, number> = {
+  dev_admin: 1,
+  admin: 2,
+  officer: 3,
+  member: 4,
+};
+
 export const permissionLabels: Record<PermissionKey, string> = {
   view_system_dashboard: 'เข้าหน้า ภาพรวมระบบ',
   view_user_workspace: 'เข้าหน้า แดชบอร์ดผู้ใช้งาน',
@@ -10,10 +17,17 @@ export const permissionLabels: Record<PermissionKey, string> = {
 };
 
 export const roleLabels: Record<UserRole, string> = {
-  dev_admin: 'Dev Admin',
+  dev_admin: 'DevManager',
   admin: 'Admin',
   officer: 'เจ้าหน้าที่',
   member: 'สมาชิก',
+};
+
+export const roleLevelLabels: Record<UserRole, string> = {
+  dev_admin: 'ระดับ 1',
+  admin: 'ระดับ 2',
+  officer: 'ระดับ 3',
+  member: 'ระดับ 4',
 };
 
 export const fullPermissionSet: PermissionSet = {
@@ -59,4 +73,12 @@ export function getDefaultPermissionsForRole(role: UserRole): PermissionSet {
   }
 
   return defaultRolePermissions[role];
+}
+
+export function canManageRole(actorRole: UserRole, targetCurrentRole: UserRole, nextRole: UserRole) {
+  return roleLevels[actorRole] < roleLevels[targetCurrentRole] && roleLevels[actorRole] < roleLevels[nextRole];
+}
+
+export function getAssignableRoles(actorRole: UserRole, targetCurrentRole: UserRole) {
+  return (Object.keys(roleLevels) as UserRole[]).filter((nextRole) => canManageRole(actorRole, targetCurrentRole, nextRole));
 }

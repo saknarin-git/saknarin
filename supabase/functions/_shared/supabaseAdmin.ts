@@ -13,6 +13,13 @@ export type PermissionKey =
 export type PermissionSet = Record<PermissionKey, boolean>;
 export type RolePermissionsMatrix = Record<AppRole, PermissionSet>;
 
+export const roleLevels: Record<AppRole, number> = {
+  dev_admin: 1,
+  admin: 2,
+  officer: 3,
+  member: 4,
+};
+
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
@@ -105,6 +112,10 @@ export async function getPermissionsForRole(role: AppRole) {
 
   const matrix = await getRolePermissionsMatrix();
   return matrix[role];
+}
+
+export function canManageRole(actorRole: AppRole, targetCurrentRole: AppRole, nextRole: AppRole) {
+  return roleLevels[actorRole] < roleLevels[targetCurrentRole] && roleLevels[actorRole] < roleLevels[nextRole];
 }
 
 export function createUserClient(accessToken?: string) {

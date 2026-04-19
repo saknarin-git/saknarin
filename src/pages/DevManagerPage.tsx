@@ -2,11 +2,11 @@ import { useEffect, useState } from 'react';
 import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
-import { defaultRolePermissions, permissionLabels, roleLabels } from '../constants/permissions';
+import { canManageRole, defaultRolePermissions, getAssignableRoles, permissionLabels, roleLabels, roleLevelLabels } from '../constants/permissions';
 import { SystemOverviewPanel } from '../components/SystemOverviewPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
-import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, PermissionKey } from '../types';
+import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, PermissionKey, UserRole } from '../types';
 import { buildCsvPreview } from '../utils/csvPreview';
 
 const defaultSettings: AppSettings = {
@@ -142,6 +142,22 @@ export function DevManagerPage() {
         },
       },
     }));
+  }
+
+  function getRoleActionLabel(role: UserRole) {
+    if (role === 'dev_admin') {
+      return 'ตั้งเป็น DevManager';
+    }
+
+    if (role === 'admin') {
+      return 'ตั้งเป็น Admin';
+    }
+
+    if (role === 'officer') {
+      return 'ตั้งเป็นเจ้าหน้าที่';
+    }
+
+    return 'ตั้งเป็นสมาชิก';
   }
 
   async function handleFileSelection(
@@ -383,7 +399,7 @@ export function DevManagerPage() {
               </div>
               <div className="list-item">
                 <strong>จำนวนผู้ดูแลระบบ</strong>
-                <div className="muted">มี Dev Admin {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
+                <div className="muted">มี DevManager {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
               </div>
             </div>
           </section>
@@ -435,9 +451,9 @@ export function DevManagerPage() {
             <div className="permission-matrix">
               <div className="permission-row permission-row-header">
                 <div>สิทธิ์</div>
-                <div>{roleLabels.admin}</div>
-                <div>{roleLabels.officer}</div>
-                <div>{roleLabels.member}</div>
+                <div>{roleLabels.admin} ({roleLevelLabels.admin})</div>
+                <div>{roleLabels.officer} ({roleLevelLabels.officer})</div>
+                <div>{roleLabels.member} ({roleLevelLabels.member})</div>
               </div>
               {(Object.keys(permissionLabels) as PermissionKey[]).map((permission) => (
                 <div key={permission} className="permission-row">
@@ -465,10 +481,10 @@ export function DevManagerPage() {
                   </label>
                 </div>
               ))}
-              <div className="notice">Dev Admin มีสิทธิ์เต็มระบบเสมอ และไม่ถูกปรับจากตารางนี้</div>
+              <div className="notice">DevManager ระดับ 1 มีสิทธิ์เต็มระบบเสมอ และไม่ถูกปรับจากตารางนี้</div>
             </div>
           ) : (
-            <div className="notice">ตารางสิทธิ์นี้ดูได้อย่างเดียวสำหรับ Admin ปกติ การแก้ไขทำได้เฉพาะ Dev Admin</div>
+            <div className="notice">ตารางสิทธิ์นี้ดูได้อย่างเดียวสำหรับ Admin ปกติ การแก้ไขทำได้เฉพาะ DevManager</div>
           )}
         </div>
       </section>
@@ -490,46 +506,44 @@ export function DevManagerPage() {
                   <div>
                     <strong>{user.title}{user.first_name} {user.last_name}</strong>
                     <div className="muted">เลขสมาชิก {user.member_no} | Username: {user.username}</div>
+                    <div className="muted">สิทธิ์ปัจจุบัน: {roleLabels[user.role]} ({roleLevelLabels[user.role]})</div>
                   </div>
                   <StatusBadge status={user.approval_status} />
                 </div>
                 <div className="actions">
-                  <button
-                    type="button"
-                    className="btn btn-primary"
-                    onClick={() => handleApproval(user.id, 'approved', user.role)}
-                  >
-                    อนุมัติ
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger"
-                    onClick={() => handleApproval(user.id, 'rejected', user.role)}
-                  >
-                    ปฏิเสธ
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => handleApproval(user.id, 'approved', 'officer')}
-                  >
-                    ตั้งเป็นเจ้าหน้าที่
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => handleApproval(user.id, 'approved', 'admin')}
-                  >
-                    ตั้งเป็นแอดมิน
-                  </button>
-                  {isDevAdmin && (
+                  {session && canManageRole(session.user.role, user.role, user.role) && (
                     <button
                       type="button"
-                      className="btn btn-secondary"
-                      onClick={() => handleApproval(user.id, 'approved', 'dev_admin')}
+                      className="btn btn-primary"
+                      onClick={() => handleApproval(user.id, 'approved', user.role)}
                     >
-                      ตั้งเป็น Dev Admin
+                      อนุมัติ
                     </button>
+                  )}
+                  {session && canManageRole(session.user.role, user.role, user.role) && (
+                    <button
+                      type="button"
+                      className="btn btn-danger"
+                      onClick={() => handleApproval(user.id, 'rejected', user.role)}
+                    >
+                      ปฏิเสธ
+                    </button>
+                  )}
+                  {session && getAssignableRoles(session.user.role, user.role).map((nextRole) => (
+                    <button
+                      key={nextRole}
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => handleApproval(user.id, 'approved', nextRole)}
+                    >
+                      {getRoleActionLabel(nextRole)}
+                    </button>
+                  ))}
+                  {session?.user.id === user.id && (
+                    <div className="notice">ไม่สามารถเลื่อนหรือลดระดับสิทธิ์ของตนเองได้</div>
+                  )}
+                  {session && session.user.id !== user.id && !canManageRole(session.user.role, user.role, user.role) && (
+                    <div className="notice">แก้สิทธิ์ได้เฉพาะผู้ใช้ที่มีระดับต่ำกว่าคุณเท่านั้น</div>
                   )}
                 </div>
               </div>

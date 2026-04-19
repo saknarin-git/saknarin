@@ -38,7 +38,7 @@ const defaultOverview: AdminOverview = {
 
 function getRoleLabel(role: UserRole) {
   if (role === 'dev_admin') {
-    return 'Dev Admin';
+    return 'DevManager';
   }
 
   if (role === 'member') {
@@ -111,7 +111,7 @@ export function UserWorkspacePage() {
       return (
         <>
           <div className="card role-widget-card role-widget-admin">
-            <h3 className="section-title">ศูนย์ควบคุม Dev Admin</h3>
+            <h3 className="section-title">ศูนย์ควบคุม DevManager</h3>
             <div className="dashboard-shortcuts">
               <Link to="/devmanager" className="shortcut-card shortcut-link-card">
                 <strong>ตั้งค่าสิทธิ์ทั้งระบบ</strong>
@@ -136,7 +136,7 @@ export function UserWorkspacePage() {
               </div>
               <div className="list-item">
                 <strong>ผู้ดูแลสิทธิ์ในระบบ</strong>
-                <div className="muted">มี Dev Admin {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คน</div>
+                <div className="muted">มี DevManager {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คน</div>
               </div>
             </div>
           </div>
@@ -153,7 +153,7 @@ export function UserWorkspacePage() {
               {currentSession.permissions.access_devmanager && (
                 <Link to="/devmanager" className="shortcut-card shortcut-link-card">
                   <strong>เปิด DevManager</strong>
-                  <div className="muted">ใช้งานเครื่องมือบริหารระบบตามสิทธิ์ที่ Dev Admin กำหนด</div>
+                  <div className="muted">ใช้งานเครื่องมือบริหารระบบตามสิทธิ์ที่ DevManager กำหนด</div>
                 </Link>
               )}
               {currentSession.permissions.manage_members && (
@@ -175,7 +175,7 @@ export function UserWorkspacePage() {
             <div className="list">
               <div className="list-item">
                 <strong>สิทธิ์ปัจจุบันของคุณ</strong>
-                <div className="muted">หน้าและเมนูที่เห็นอยู่ตอนนี้ถูกควบคุมจากตารางสิทธิ์ที่ Dev Admin กำหนด</div>
+                <div className="muted">หน้าและเมนูที่เห็นอยู่ตอนนี้ถูกควบคุมจากตารางสิทธิ์ที่ DevManager กำหนด</div>
               </div>
             </div>
           </div>
@@ -356,7 +356,7 @@ export function UserWorkspacePage() {
             <div className="list">
               <div className="list-item">
                 <strong>เข้าถึงข้อมูลผู้ดูแลระบบ</strong>
-                <div className="muted">คุณสามารถเข้าถึงหน้าต่าง ๆ ตามสิทธิ์ที่ Dev Admin กำหนดให้กับบทบาท Admin</div>
+                <div className="muted">คุณสามารถเข้าถึงหน้าต่าง ๆ ตามสิทธิ์ที่ DevManager กำหนดให้กับบทบาท Admin</div>
               </div>
               <div className="actions compact-actions">
                 {session.permissions.access_devmanager && <Link to="/devmanager" className="btn btn-primary">เปิด DevManager</Link>}
