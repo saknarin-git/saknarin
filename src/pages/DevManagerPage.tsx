@@ -3,7 +3,6 @@ import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
 import { canManageRole, defaultRolePermissions, getAssignableRoles, permissionLabels, roleLabels, roleLevelLabels } from '../constants/permissions';
-import { SystemOverviewPanel } from '../components/SystemOverviewPanel';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, PermissionKey, UserRole } from '../types';
@@ -33,12 +32,11 @@ const defaultOverview: AdminOverview = {
   total_outstanding_amount: 0,
 };
 
-type DevManagerSection = 'dashboard' | 'home' | 'settings' | 'imports' | 'approvals';
+type DevManagerSection = 'home' | 'settings' | 'imports' | 'approvals';
 
 const sectionItems: Array<{ key: DevManagerSection; label: string; description: string }> = [
-  { key: 'dashboard', label: 'แดชบอร์ด', description: 'สรุปภาพรวมของกลุ่ม' },
-  { key: 'home', label: 'หน้าหลักปัจจุบัน', description: 'สรุปงานและทางลัดของ DevManager' },
-  { key: 'settings', label: 'การตั้งค่าระบบ', description: 'แก้ไขชื่อกลุ่ม ประกาศ และสิทธิ์สมัคร' },
+  { key: 'home', label: 'ศูนย์ควบคุมระบบ', description: 'ทางลัดสำหรับงานดูแลระบบของ DevManager' },
+  { key: 'settings', label: 'การตั้งค่าระบบ', description: 'แก้ไขชื่อกลุ่ม ประกาศ สิทธิ์สมัคร และ permission matrix' },
   { key: 'imports', label: 'การนำเข้าฐานข้อมูล', description: 'นำเข้าไฟล์ CSV สมาชิกและสินเชื่อ' },
   { key: 'approvals', label: 'ผู้ใช้งานรออนุมัติ', description: 'ตรวจและอนุมัติบัญชีผู้ใช้' },
 ];
@@ -52,7 +50,7 @@ export function DevManagerPage() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<DevManagerSection>('dashboard');
+  const [activeSection, setActiveSection] = useState<DevManagerSection>('home');
   const [memberCsvText, setMemberCsvText] = useState('');
   const [memberFileName, setMemberFileName] = useState('');
   const [memberPreview, setMemberPreview] = useState<CsvPreviewSummary | null>(null);
@@ -330,39 +328,13 @@ export function DevManagerPage() {
     );
   }
 
-  function renderDashboard() {
-    return (
-      <div className="devmanager-section-stack">
-        <SystemOverviewPanel overview={overview} settings={settings} title={`สรุปภาพรวมของ ${settings.group_name || APP_GROUP_NAME}`} />
-
-        <section className="card">
-          <h3 className="section-title">ทางลัดสำหรับผู้ดูแลระบบ</h3>
-          <p className="muted">ใช้เมนูย่อยด้านล่างหรือกดทางลัดเหล่านี้เพื่อไปยังงานจัดการหลักของ DevManager</p>
-          <div className="dashboard-shortcuts">
-            {sectionItems.filter((item) => item.key !== 'dashboard').map((item) => (
-              <button
-                key={item.key}
-                type="button"
-                className="shortcut-card"
-                onClick={() => setActiveSection(item.key)}
-              >
-                <strong>{item.label}</strong>
-                <div className="muted">{item.description}</div>
-              </button>
-            ))}
-          </div>
-        </section>
-      </div>
-    );
-  }
-
   function renderHomeSection() {
     return (
       <div className="devmanager-section-stack">
         <section className="card">
-          <h3 className="section-title">หน้าหลักปัจจุบันของ DevManager</h3>
+          <h3 className="section-title">ศูนย์ควบคุมระบบของ DevManager</h3>
           <p className="muted">
-            ใช้หน้านี้เป็นจุดรวมทางลัดสำหรับการดูภาพรวม ตั้งค่าระบบ นำเข้าฐานข้อมูล และอนุมัติผู้ใช้งานใหม่
+            หน้านี้ใช้สำหรับดูแลงานผู้ดูแลระบบเท่านั้น เช่น ตั้งค่าระบบ กำหนดสิทธิ์ อนุมัติผู้ใช้ และดูแลการนำเข้าข้อมูล
           </p>
           <div className="dashboard-shortcuts">
             {sectionItems.filter((item) => item.key !== 'home').map((item) => (
@@ -381,25 +353,29 @@ export function DevManagerPage() {
 
         <div className="grid-two">
           <section className="card">
-            <h3 className="section-title">ข้อมูลล่าสุดในระบบ</h3>
+            <h3 className="section-title">สถานะงานผู้ดูแลระบบ</h3>
             <div className="stats-row">
-              <div className="stat-chip">สมาชิก {importStats.members_count} รายการ</div>
-              <div className="stat-chip">สัญญาเงินกู้ {importStats.loan_contracts_count} รายการ</div>
               <div className="stat-chip">บัญชีรออนุมัติ {overview.pending_users_count} รายการ</div>
+              <div className="stat-chip">สิทธิ์สมัครสมาชิก {settings.allow_registration ? 'เปิด' : 'ปิด'}</div>
+              <div className="stat-chip">ผู้ใช้งานอนุมัติแล้ว {overview.approved_users_count} รายการ</div>
             </div>
             <div className="notice">ข้อความประกาศปัจจุบัน: {settings.notice || 'ยังไม่มีประกาศ'}</div>
           </section>
 
           <section className="card">
-            <h3 className="section-title">สถานะการใช้งานระบบ</h3>
+            <h3 className="section-title">โครงสร้างผู้ดูแลระบบ</h3>
             <div className="list">
               <div className="list-item">
-                <strong>เปิดรับสมัครสมาชิก</strong>
-                <div className="muted">{settings.allow_registration ? 'เปิดรับสมัครสมาชิกใหม่อยู่' : 'ปิดรับสมัครสมาชิกใหม่ชั่วคราว'}</div>
+                <strong>DevManager ระดับ 1</strong>
+                <div className="muted">ดูแลการตั้งค่าระบบทั้งหมดและกำหนดสิทธิ์ของระดับ 2, 3 และ 4</div>
               </div>
               <div className="list-item">
-                <strong>จำนวนผู้ดูแลระบบ</strong>
+                <strong>จำนวนผู้ดูแลในระบบ</strong>
                 <div className="muted">มี DevManager {overview.dev_admin_users_count} คน, Admin {overview.admin_users_count} คน และเจ้าหน้าที่ {overview.officer_users_count} คนที่ช่วยดูแลการทำงาน</div>
+              </div>
+              <div className="list-item">
+                <strong>ขอบเขตหน้าที่</strong>
+                <div className="muted">งานธุรกรรมของกลุ่มให้เจ้าหน้าที่เป็นผู้ดำเนินการ ส่วน DevManager ทำหน้าที่กำกับ ดูแล และตั้งค่าระบบ</div>
               </div>
             </div>
           </section>
@@ -625,10 +601,6 @@ export function DevManagerPage() {
   }
 
   function renderSectionContent() {
-    if (activeSection === 'dashboard') {
-      return renderDashboard();
-    }
-
     if (activeSection === 'home') {
       return renderHomeSection();
     }
@@ -650,7 +622,7 @@ export function DevManagerPage() {
 
       <div className="hero">
         <h1>จัดการระบบภายในเว็บแอพทั้งหมด</h1>
-        <p>ใช้เมนูย่อยด้านล่างเพื่อเปิดแดชบอร์ดภาพรวม จัดการการตั้งค่า นำเข้าฐานข้อมูล และอนุมัติผู้ใช้งานใหม่</p>
+        <p>ใช้เมนูย่อยด้านล่างเพื่อดูแลงานผู้ดูแลระบบ กำหนดสิทธิ์ ตั้งค่าระบบ นำเข้าฐานข้อมูล และอนุมัติผู้ใช้งานใหม่</p>
       </div>
 
       {message && <div className="notice">{message}</div>}
