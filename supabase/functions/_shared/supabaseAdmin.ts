@@ -80,7 +80,7 @@ function normalizePermissionSet(raw: unknown, fallback: PermissionSet): Permissi
 export function normalizeRolePermissions(raw: unknown): RolePermissionsMatrix {
   const source = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {};
   return {
-    dev_admin: fullPermissionSet,
+    dev_admin: normalizePermissionSet(source.dev_admin, defaultRolePermissions.dev_admin),
     admin: normalizePermissionSet(source.admin, defaultRolePermissions.admin),
     officer: normalizePermissionSet(source.officer, defaultRolePermissions.officer),
     member: normalizePermissionSet(source.member, defaultRolePermissions.member),
@@ -106,10 +106,6 @@ export async function getRolePermissionsMatrix() {
 }
 
 export async function getPermissionsForRole(role: AppRole) {
-  if (role === 'dev_admin') {
-    return fullPermissionSet;
-  }
-
   const matrix = await getRolePermissionsMatrix();
   return matrix[role];
 }
@@ -205,10 +201,6 @@ export async function ensureDevAdmin(accessToken?: string) {
 
 export async function ensurePermission(accessToken: string | undefined, permission: PermissionKey) {
   const profile = await ensureAuthenticated(accessToken);
-
-  if (profile.role === 'dev_admin') {
-    return profile;
-  }
 
   const permissions = await getPermissionsForRole(profile.role as AppRole);
   if (!permissions[permission]) {

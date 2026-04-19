@@ -155,7 +155,7 @@ export function DevManagerPage() {
     }
   }
 
-  function handlePermissionToggle(role: 'admin' | 'officer' | 'member', permission: PermissionKey) {
+  function handlePermissionToggle(role: UserRole, permission: PermissionKey) {
     setSettings((current) => ({
       ...current,
       role_permissions: {
@@ -458,6 +458,7 @@ export function DevManagerPage() {
             <div className="permission-matrix">
               <div className="permission-row permission-row-header">
                 <div>สิทธิ์</div>
+                <div>{roleLabels.dev_admin} ({roleLevelLabels.dev_admin})</div>
                 <div>{roleLabels.admin} ({roleLevelLabels.admin})</div>
                 <div>{roleLabels.officer} ({roleLevelLabels.officer})</div>
                 <div>{roleLabels.member} ({roleLevelLabels.member})</div>
@@ -465,6 +466,13 @@ export function DevManagerPage() {
               {(Object.keys(permissionLabels) as PermissionKey[]).map((permission) => (
                 <div key={permission} className="permission-row">
                   <div>{permissionLabels[permission]}</div>
+                  <label className="permission-cell">
+                    <input
+                      type="checkbox"
+                      checked={settings.role_permissions.dev_admin[permission]}
+                      onChange={() => handlePermissionToggle('dev_admin', permission)}
+                    />
+                  </label>
                   <label className="permission-cell">
                     <input
                       type="checkbox"
@@ -488,7 +496,7 @@ export function DevManagerPage() {
                   </label>
                 </div>
               ))}
-              <div className="notice">DevManager ระดับ 1 มีสิทธิ์เต็มระบบเสมอ และไม่ถูกปรับจากตารางนี้</div>
+              <div className="notice">คุณกำหนดสิทธิ์ของระดับ 1 ได้แล้ว แต่ระบบจะบังคับให้ระดับ 1 ต้องเข้าหน้า DevManager ได้เสมอเพื่อไม่ให้ล็อกการตั้งค่าเอง</div>
             </div>
           ) : (
             <div className="notice">ตารางสิทธิ์นี้ดูได้อย่างเดียวสำหรับ Admin ปกติ การแก้ไขทำได้เฉพาะ DevManager</div>

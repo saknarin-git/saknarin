@@ -68,10 +68,6 @@ export const defaultRolePermissions: RolePermissionsMatrix = {
 };
 
 export function getDefaultPermissionsForRole(role: UserRole): PermissionSet {
-  if (role === 'dev_admin') {
-    return fullPermissionSet;
-  }
-
   return defaultRolePermissions[role];
 }
 

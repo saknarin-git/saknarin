@@ -412,6 +412,10 @@ Deno.serve(async (request) => {
       const isDevAdmin = userProfile.role === 'dev_admin';
       const nextRolePermissions = normalizeRolePermissions(settings.role_permissions ?? getDefaultRolePermissions());
 
+      if (!nextRolePermissions.dev_admin.access_devmanager) {
+        return jsonResponse({ success: false, message: 'ระดับ 1 ต้องมีสิทธิ์เข้าหน้า DevManager เสมอ เพื่อไม่ให้ระบบล็อกผู้ดูแลออกจากหน้าตั้งค่า' }, 400);
+      }
+
       if (settings.role_permissions && !isDevAdmin) {
         return jsonResponse({ success: false, message: 'เฉพาะ DevManager เท่านั้นที่ตั้งค่าสิทธิ์ของแต่ละบทบาทได้' }, 403);
       }
