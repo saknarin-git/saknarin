@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link, Navigate, useLocation } from 'react-router-dom';
 import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
@@ -34,14 +35,35 @@ const defaultOverview: AdminOverview = {
 
 type DevManagerSection = 'home' | 'settings' | 'imports' | 'approvals';
 
-const sectionItems: Array<{ key: DevManagerSection; label: string; description: string }> = [
-  { key: 'home', label: 'ศูนย์ควบคุมระบบ', description: 'ทางลัดสำหรับงานดูแลระบบของ DevManager' },
-  { key: 'settings', label: 'การตั้งค่าระบบ', description: 'แก้ไขชื่อกลุ่ม ประกาศ สิทธิ์สมัคร และ permission matrix' },
-  { key: 'imports', label: 'การนำเข้าฐานข้อมูล', description: 'นำเข้าไฟล์ CSV สมาชิกและสินเชื่อ' },
-  { key: 'approvals', label: 'ผู้ใช้งานรออนุมัติ', description: 'ตรวจและอนุมัติบัญชีผู้ใช้' },
+const sectionItems: Array<{ key: DevManagerSection; label: string; description: string; path: string }> = [
+  { key: 'home', label: 'เมนูหลัก DevManager', description: 'รวมเมนูดูแลระบบทั้งหมดไว้ในหน้าเดียว', path: '/devmanager' },
+  { key: 'settings', label: 'การตั้งค่าระบบ', description: 'แก้ไขชื่อกลุ่ม ประกาศ สิทธิ์สมัคร และ permission matrix', path: '/devmanager/settings' },
+  { key: 'imports', label: 'การนำเข้าฐานข้อมูล', description: 'นำเข้าไฟล์ CSV สมาชิกและสินเชื่อ', path: '/devmanager/imports' },
+  { key: 'approvals', label: 'ผู้ใช้งานรออนุมัติ', description: 'ตรวจและอนุมัติบัญชีผู้ใช้', path: '/devmanager/approvals' },
 ];
 
+function getSectionFromPath(pathname: string): DevManagerSection | null {
+  if (pathname === '/devmanager' || pathname === '/devmanager/') {
+    return 'home';
+  }
+
+  if (pathname === '/devmanager/settings') {
+    return 'settings';
+  }
+
+  if (pathname === '/devmanager/imports') {
+    return 'imports';
+  }
+
+  if (pathname === '/devmanager/approvals') {
+    return 'approvals';
+  }
+
+  return null;
+}
+
 export function DevManagerPage() {
+  const location = useLocation();
   const { session } = useAuth();
   const isDevAdmin = session?.user.role === 'dev_admin';
   const [users, setUsers] = useState<AppUser[]>([]);
@@ -50,7 +72,6 @@ export function DevManagerPage() {
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [activeSection, setActiveSection] = useState<DevManagerSection>('home');
   const [memberCsvText, setMemberCsvText] = useState('');
   const [memberFileName, setMemberFileName] = useState('');
   const [memberPreview, setMemberPreview] = useState<CsvPreviewSummary | null>(null);
@@ -59,6 +80,11 @@ export function DevManagerPage() {
   const [loanPreview, setLoanPreview] = useState<CsvPreviewSummary | null>(null);
   const [importingMembers, setImportingMembers] = useState(false);
   const [importingLoans, setImportingLoans] = useState(false);
+  const activeSection = getSectionFromPath(location.pathname);
+
+  if (!activeSection) {
+    return <Navigate to="/devmanager" replace />;
+  }
 
   useEffect(() => {
     if (!session) {
@@ -332,21 +358,20 @@ export function DevManagerPage() {
     return (
       <div className="devmanager-section-stack">
         <section className="card">
-          <h3 className="section-title">ศูนย์ควบคุมระบบของ DevManager</h3>
+          <h3 className="section-title">เมนูหลัก DevManager</h3>
           <p className="muted">
-            หน้านี้ใช้สำหรับดูแลงานผู้ดูแลระบบเท่านั้น เช่น ตั้งค่าระบบ กำหนดสิทธิ์ อนุมัติผู้ใช้ และดูแลการนำเข้าข้อมูล
+            รวมเมนูของผู้ดูแลระบบไว้ในหน้าเดียว เลือกการ์ดที่ต้องการเพื่อเข้าไปตั้งค่าหรือจัดการส่วนต่าง ๆ
           </p>
           <div className="dashboard-shortcuts">
             {sectionItems.filter((item) => item.key !== 'home').map((item) => (
-              <button
+              <Link
                 key={item.key}
-                type="button"
-                className="shortcut-card"
-                onClick={() => setActiveSection(item.key)}
+                to={item.path}
+                className="shortcut-card shortcut-link-card devmanager-card-link"
               >
                 <strong>{item.label}</strong>
                 <div className="muted">{item.description}</div>
-              </button>
+              </Link>
             ))}
           </div>
         </section>
@@ -387,7 +412,13 @@ export function DevManagerPage() {
   function renderSettingsSection() {
     return (
       <section className="card">
-        <h3>การตั้งค่าระบบ</h3>
+        <div className="topbar devmanager-section-topbar">
+          <div>
+            <h3 className="section-title">การตั้งค่าระบบ</h3>
+            <div className="muted">จัดการค่าระบบหลักและกำหนดเมนู/สิทธิ์ที่บทบาทต่าง ๆ เข้าถึงได้</div>
+          </div>
+          <Link to="/devmanager" className="btn btn-secondary">กลับเมนู DevManager</Link>
+        </div>
         <label className="field">
           <span>ชื่อกลุ่ม</span>
           <input
@@ -470,7 +501,13 @@ export function DevManagerPage() {
   function renderApprovalsSection() {
     return (
       <section className="card">
-        <h3>ผู้ใช้งานรออนุมัติ</h3>
+        <div className="topbar devmanager-section-topbar">
+          <div>
+            <h3 className="section-title">ผู้ใช้งานรออนุมัติ</h3>
+            <div className="muted">เลื่อนหรือลดระดับสิทธิ์ได้เฉพาะเมื่อคุณมีระดับสูงกว่าเป้าหมายเท่านั้น</div>
+          </div>
+          <Link to="/devmanager" className="btn btn-secondary">กลับเมนู DevManager</Link>
+        </div>
         {loading ? (
           <p className="muted">กำลังโหลด...</p>
         ) : (
@@ -532,7 +569,18 @@ export function DevManagerPage() {
 
   function renderImportsSection() {
     return (
-      <div className="grid-two">
+      <div className="devmanager-section-stack">
+        <section className="card">
+          <div className="topbar devmanager-section-topbar">
+            <div>
+              <h3 className="section-title">การนำเข้าฐานข้อมูล</h3>
+              <div className="muted">ใช้สำหรับดูแลข้อมูลตั้งต้นของระบบเท่านั้น ไม่ใช่หน้าทำธุรกรรมประจำวันของกลุ่ม</div>
+            </div>
+            <Link to="/devmanager" className="btn btn-secondary">กลับเมนู DevManager</Link>
+          </div>
+        </section>
+
+        <div className="grid-two">
         <section className="card">
           <h3>นำเข้าฐานข้อมูลสมาชิก</h3>
           <div className="notice">คอลัมน์ที่รองรับ: เลขที่สมาชิก, คำนำหน้าชื่อ, ชื่อ, สกุล, สถานะ</div>
@@ -596,6 +644,7 @@ export function DevManagerPage() {
           </div>
           {renderPreview(loanPreview)}
         </section>
+        </div>
       </div>
     );
   }
@@ -622,24 +671,10 @@ export function DevManagerPage() {
 
       <div className="hero">
         <h1>จัดการระบบภายในเว็บแอพทั้งหมด</h1>
-        <p>ใช้เมนูย่อยด้านล่างเพื่อดูแลงานผู้ดูแลระบบ กำหนดสิทธิ์ ตั้งค่าระบบ นำเข้าฐานข้อมูล และอนุมัติผู้ใช้งานใหม่</p>
+        <p>DevManager ทำหน้าที่ดูแลระบบและตั้งค่าเครื่องมือให้ทีมงาน เลือกเมนูจากการ์ดด้านล่างแล้วค่อยเข้าไปจัดการแต่ละส่วน</p>
       </div>
 
       {message && <div className="notice">{message}</div>}
-
-      <div className="devmanager-subnav">
-        {sectionItems.map((item) => (
-          <button
-            key={item.key}
-            type="button"
-            className={`devmanager-tab ${activeSection === item.key ? 'devmanager-tab-active' : ''}`}
-            onClick={() => setActiveSection(item.key)}
-          >
-            <strong>{item.label}</strong>
-            <span>{item.description}</span>
-          </button>
-        ))}
-      </div>
 
       <div className="section-space">
         {renderSectionContent()}

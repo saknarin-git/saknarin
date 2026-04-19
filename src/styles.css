@@ -557,6 +557,18 @@ textarea {
   text-decoration: none;
 }
 
+.devmanager-card-link {
+  min-height: 132px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.devmanager-section-topbar {
+  align-items: flex-start;
+  margin-bottom: 18px;
+}
+
 .officer-workspace-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

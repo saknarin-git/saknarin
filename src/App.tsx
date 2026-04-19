@@ -90,7 +90,7 @@ export default function App() {
         }
       />
       <Route
-        path="/devmanager"
+        path="/devmanager/*"
         element={
           <ProtectedRoute requiredPermission="access_devmanager">
             <DevManagerPage />

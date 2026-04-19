@@ -102,7 +102,7 @@ export function AppMenu({ title }: AppMenuProps) {
             </Link>
           )}
           {canAccessDevManager && (
-            <Link to="/devmanager" className={`drawer-link ${location.pathname === '/devmanager' ? 'drawer-link-active' : ''}`}>
+            <Link to="/devmanager" className={`drawer-link ${location.pathname.startsWith('/devmanager') ? 'drawer-link-active' : ''}`}>
               DevManager
             </Link>
           )}
