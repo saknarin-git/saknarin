@@ -87,7 +87,7 @@ export function OfficerWorkspacePage() {
               </Link>
             )}
             <Link to="/workspace" className="shortcut-card shortcut-link-card">
-              <strong>กลับแดชบอร์ดผู้ใช้งาน</strong>
+              <strong>กลับข้อมูลส่วนตัว</strong>
               <div className="muted">จัดการข้อมูลส่วนตัว รหัสผ่าน และสิทธิ์การเข้าถึงของบัญชี</div>
             </Link>
           </div>

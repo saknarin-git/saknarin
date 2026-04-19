@@ -83,7 +83,7 @@ export function AppMenu({ title }: AppMenuProps) {
           )}
           {session.permissions.view_user_workspace && (
             <Link to="/workspace" className={`drawer-link ${location.pathname === '/workspace' ? 'drawer-link-active' : ''}`}>
-              แดชบอร์ดผู้ใช้งาน
+              ข้อมูลส่วนตัว
             </Link>
           )}
           {canViewOfficerWorkspace && (

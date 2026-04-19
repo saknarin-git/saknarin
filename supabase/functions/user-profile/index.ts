@@ -1,11 +1,66 @@
 import '../_shared/edge-runtime.d.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
-import { adminClient, ensureAuthenticated, toAuthEmail } from '../_shared/supabaseAdmin.ts';
+import { adminClient, ensureAuthenticated, getPermissionsForRole, toAuthEmail } from '../_shared/supabaseAdmin.ts';
 
 const allowedTitles = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
 const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
 const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+async function buildProfileDetails(profile: {
+  id: string;
+  member_no: string;
+  title: string;
+  first_name: string;
+  last_name: string;
+  username: string;
+  role: string;
+  approval_status: string;
+  created_at: string;
+  approved_at: string | null;
+}) {
+  const [memberResult, settingsResult, permissions] = await Promise.all([
+    adminClient
+      .from('members')
+      .select('member_no, active, legacy_status, created_at, updated_at')
+      .eq('member_no', profile.member_no)
+      .single(),
+    adminClient
+      .from('app_settings')
+      .select('group_name, notice')
+      .eq('id', 1)
+      .single(),
+    getPermissionsForRole(profile.role as 'member' | 'officer' | 'admin' | 'dev_admin'),
+  ]);
+
+  if (memberResult.error || !memberResult.data) {
+    throw memberResult.error ?? new Error('ไม่พบข้อมูลสมาชิกของผู้ใช้งาน');
+  }
+
+  if (settingsResult.error || !settingsResult.data) {
+    throw settingsResult.error ?? new Error('ไม่พบการตั้งค่าระบบ');
+  }
+
+  return {
+    user: {
+      id: profile.id,
+      member_no: profile.member_no,
+      title: profile.title,
+      first_name: profile.first_name,
+      last_name: profile.last_name,
+      username: profile.username,
+      role: profile.role,
+      approval_status: profile.approval_status,
+    },
+    account: {
+      created_at: profile.created_at,
+      approved_at: profile.approved_at,
+    },
+    member: memberResult.data,
+    permissions,
+    settings: settingsResult.data,
+  };
+}
 
 Deno.serve(async (request) => {
   const preflight = handleOptions(request);
@@ -16,7 +71,8 @@ Deno.serve(async (request) => {
     const profile = await ensureAuthenticated(accessToken);
 
     if (request.method === 'GET') {
-      return jsonResponse({ success: true, data: profile });
+      const profileDetails = await buildProfileDetails(profile);
+      return jsonResponse({ success: true, data: profileDetails });
     }
 
     if (request.method === 'PATCH') {
@@ -41,17 +97,19 @@ Deno.serve(async (request) => {
           last_name: lastName,
         })
         .eq('id', profile.id)
-        .select('id, member_no, title, first_name, last_name, username, role, approval_status')
+          .select('id, member_no, title, first_name, last_name, username, role, approval_status, created_at, approved_at')
         .single();
 
       if (error || !updatedProfile) {
         throw error ?? new Error('ไม่สามารถอัปเดตข้อมูลผู้ใช้งานได้');
       }
 
+      const profileDetails = await buildProfileDetails(updatedProfile);
+
       return jsonResponse({
         success: true,
         message: 'บันทึกข้อมูลส่วนตัวเรียบร้อย',
-        data: updatedProfile,
+        data: profileDetails,
       });
     }
 

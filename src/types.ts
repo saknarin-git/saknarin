@@ -45,6 +45,26 @@ export interface ProfileUpdatePayload {
   last_name: string;
 }
 
+export interface UserProfileDetails {
+  user: AppUser;
+  account: {
+    created_at: string;
+    approved_at: string | null;
+  };
+  member: {
+    member_no: string;
+    active: boolean;
+    legacy_status: string | null;
+    created_at: string;
+    updated_at: string | null;
+  };
+  permissions: PermissionSet;
+  settings: {
+    group_name: string;
+    notice: string;
+  };
+}
+
 export interface SessionData {
   access_token: string;
   refresh_token: string;

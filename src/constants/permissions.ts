@@ -9,7 +9,7 @@ export const roleLevels: Record<UserRole, number> = {
 
 export const permissionLabels: Record<PermissionKey, string> = {
   view_system_dashboard: 'เข้าหน้า ภาพรวมระบบ',
-  view_user_workspace: 'เข้าหน้า แดชบอร์ดผู้ใช้งาน',
+  view_user_workspace: 'เข้าหน้า ข้อมูลส่วนตัว',
   view_officer_workspace: 'เข้าหน้า ศูนย์งานเจ้าหน้าที่',
   manage_members: 'เข้าหน้า ทะเบียนสมาชิก',
   manage_loans: 'เข้าหน้า สินเชื่อ',
