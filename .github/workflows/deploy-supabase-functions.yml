@@ -55,3 +55,4 @@ jobs:
           supabase functions deploy admin-users --project-ref "$PROJECT_REF" --no-verify-jwt
           supabase functions deploy admin-records --project-ref "$PROJECT_REF" --no-verify-jwt
           supabase functions deploy system-overview --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy loan-workspace --project-ref "$PROJECT_REF" --no-verify-jwt
