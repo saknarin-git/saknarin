@@ -60,91 +60,115 @@ export function OfficerWorkspacePage() {
     return null;
   }
 
+  const officerShortcutItems = [
+    session.permissions.manage_members
+      ? {
+          path: '/members',
+          label: 'ทะเบียนสมาชิก',
+          description: `จัดการสมาชิกใช้งาน ${overview.active_members_count} รายและตรวจสอบข้อมูลค้าง`,
+        }
+      : null,
+    session.permissions.manage_loans
+      ? {
+          path: '/loans',
+          label: 'ศูนย์งานสินเชื่อ',
+          description: `ทำรายการรับชำระและติดตามสัญญาคงค้าง ${overview.active_loan_contracts_count} รายการ`,
+        }
+      : null,
+    session.permissions.view_user_workspace
+      ? {
+          path: '/workspace',
+          label: 'ข้อมูลส่วนตัว',
+          description: 'ดูข้อมูลบัญชี เปลี่ยนรหัสผ่าน และตรวจสอบสิทธิ์ของบัญชีนี้',
+        }
+      : null,
+    session.permissions.view_system_dashboard
+      ? {
+          path: '/dashboard',
+          label: 'ศูนย์งาน Admin',
+          description: 'ดูภาพรวมระบบและสถานะงานจากมุมมองผู้กำกับดูแลระดับสูงกว่า',
+        }
+      : null,
+  ].filter(Boolean) as Array<{ path: string; label: string; description: string }>;
+
   return (
     <div className="page-shell">
       <AppMenu title="ศูนย์งานเจ้าหน้าที่" />
 
       <div className="hero">
         <h1>ศูนย์งานเจ้าหน้าที่</h1>
-        <p>พื้นที่ทำงานประจำวันสำหรับจัดการงานปฏิบัติการด้านสมาชิกและสินเชื่อ แยกจาก DevManager อย่างชัดเจน</p>
+        <p>รวมเมนูทำงานของผู้ใช้ระดับ 3 ไว้ในหน้าเดียว เพื่อเปิดงานสมาชิก สินเชื่อ และข้อมูลส่วนตัวได้แบบรวมศูนย์เหมือน DevManager</p>
       </div>
 
-      <div className="officer-workspace-grid">
+      <div className="devmanager-section-stack">
         <section className="card officer-focus-card">
-          <div className="eyebrow">งานสำคัญวันนี้</div>
-          <h3 className="section-title">ภาพรวมงานปฏิบัติการของ {settings.group_name || APP_GROUP_NAME}</h3>
+          <div className="eyebrow">ระดับ 3</div>
+          <h3 className="section-title">เมนูหลักเจ้าหน้าที่ของ {settings.group_name || APP_GROUP_NAME}</h3>
+          <p className="muted">ใช้หน้านี้เป็นจุดเริ่มต้นของงานประจำวัน เลือกการ์ดที่ต้องการเพื่อเข้าไปทำรายการหรือแก้ไขข้อมูลได้ทันที</p>
           <div className="dashboard-shortcuts">
-            {session.permissions.manage_members && (
-              <Link to="/members" className="shortcut-card shortcut-link-card">
-                <strong>ตรวจทะเบียนสมาชิก</strong>
-                <div className="muted">สมาชิกใช้งานอยู่ {overview.active_members_count} ราย พร้อมตรวจข้อมูลเพิ่มเติม</div>
+            {officerShortcutItems.map((item) => (
+              <Link key={item.path} to={item.path} className="shortcut-card shortcut-link-card devmanager-card-link">
+                <strong>{item.label}</strong>
+                <div className="muted">{item.description}</div>
               </Link>
-            )}
-            {session.permissions.manage_loans && (
-              <Link to="/loans" className="shortcut-card shortcut-link-card">
-                <strong>ติดตามสัญญาเงินกู้</strong>
-                <div className="muted">สัญญาที่ยังคงค้าง {overview.active_loan_contracts_count} รายการ</div>
-              </Link>
-            )}
-            <Link to="/workspace" className="shortcut-card shortcut-link-card">
-              <strong>กลับข้อมูลส่วนตัว</strong>
-              <div className="muted">จัดการข้อมูลส่วนตัว รหัสผ่าน และสิทธิ์การเข้าถึงของบัญชี</div>
-            </Link>
+            ))}
           </div>
           {!session.permissions.manage_members && !session.permissions.manage_loans && (
             <div className="notice">บทบาทของคุณเข้าหน้าศูนย์งานเจ้าหน้าที่ได้ แต่ยังไม่ได้รับสิทธิ์จัดการทะเบียนสมาชิกหรือสินเชื่อ</div>
           )}
         </section>
 
-        <section className="card">
-          <h3 className="section-title">คิวงานที่ต้องติดตาม</h3>
-          <div className="list">
-            <div className="list-item">
-              <strong>สมาชิกที่ปิดใช้งาน</strong>
-              <div className="muted">มี {overview.inactive_members_count} รายที่ควรตรวจสอบข้อมูลหรือสถานะล่าสุด</div>
+        <div className="officer-workspace-grid">
+          <section className="card">
+            <h3 className="section-title">คิวงานที่ต้องติดตาม</h3>
+            <div className="list">
+              <div className="list-item">
+                <strong>สมาชิกที่ปิดใช้งาน</strong>
+                <div className="muted">มี {overview.inactive_members_count} รายที่ควรตรวจสอบข้อมูลหรือสถานะล่าสุด</div>
+              </div>
+              <div className="list-item">
+                <strong>สัญญาที่ยังคงค้าง</strong>
+                <div className="muted">มี {overview.active_loan_contracts_count} สัญญาที่ควรติดตามการชำระและสถานะ</div>
+              </div>
+              <div className="list-item">
+                <strong>ผู้ใช้งานรออนุมัติ</strong>
+                <div className="muted">มี {overview.pending_users_count} บัญชีรอการอนุมัติจากผู้ดูแลระบบ</div>
+              </div>
             </div>
-            <div className="list-item">
-              <strong>สัญญาที่ยังคงค้าง</strong>
-              <div className="muted">มี {overview.active_loan_contracts_count} สัญญาที่ควรติดตามการชำระและสถานะ</div>
-            </div>
-            <div className="list-item">
-              <strong>ผู้ใช้งานรออนุมัติ</strong>
-              <div className="muted">มี {overview.pending_users_count} บัญชีรอการอนุมัติจากผู้ดูแลระบบ</div>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="card officer-kanban-card">
-          <h3 className="section-title">workflow งานประจำวัน</h3>
-          <div className="officer-kanban-grid">
-            <div className="workflow-column">
-              <div className="workflow-heading">ตรวจข้อมูลสมาชิก</div>
-              <div className="workflow-item">เช็กชื่อ-สกุล สถานะใช้งาน และความครบถ้วนของข้อมูลสมาชิก</div>
-              <div className="workflow-item">ปรับข้อมูลทะเบียนสมาชิกเมื่อมีการเปลี่ยนแปลงหรือพบข้อมูลตกหล่น</div>
+          <section className="card officer-kanban-card">
+            <h3 className="section-title">workflow งานประจำวัน</h3>
+            <div className="officer-kanban-grid">
+              <div className="workflow-column">
+                <div className="workflow-heading">ตรวจข้อมูลสมาชิก</div>
+                <div className="workflow-item">เช็กชื่อ-สกุล สถานะใช้งาน และความครบถ้วนของข้อมูลสมาชิก</div>
+                <div className="workflow-item">ปรับข้อมูลทะเบียนสมาชิกเมื่อมีการเปลี่ยนแปลงหรือพบข้อมูลตกหล่น</div>
+              </div>
+              <div className="workflow-column">
+                <div className="workflow-heading">ติดตามสินเชื่อ</div>
+                <div className="workflow-item">ค้นหาสัญญาที่ยังคงค้างและตรวจสถานะการชำระล่าสุด</div>
+                <div className="workflow-item">อัปเดตยอดคงค้าง ข้อมูลผู้ค้ำประกัน และสถานะของสัญญา</div>
+              </div>
+              <div className="workflow-column">
+                <div className="workflow-heading">ส่งต่อให้ผู้ดูแลระบบ</div>
+                <div className="workflow-item">แจ้งกรณีที่ต้องอนุมัติผู้ใช้งานหรือต้องใช้สิทธิ์ DevManager</div>
+                <div className="workflow-item">ประสานงานเมื่อมีการตั้งค่าระบบหรือนำเข้าฐานข้อมูลใหม่</div>
+              </div>
             </div>
-            <div className="workflow-column">
-              <div className="workflow-heading">ติดตามสินเชื่อ</div>
-              <div className="workflow-item">ค้นหาสัญญาที่ยังคงค้างและตรวจสถานะการชำระล่าสุด</div>
-              <div className="workflow-item">อัปเดตยอดคงค้าง ข้อมูลผู้ค้ำประกัน และสถานะของสัญญา</div>
-            </div>
-            <div className="workflow-column">
-              <div className="workflow-heading">ส่งต่อให้ผู้ดูแลระบบ</div>
-              <div className="workflow-item">แจ้งกรณีที่ต้องอนุมัติผู้ใช้งานหรือต้องใช้สิทธิ์ DevManager</div>
-              <div className="workflow-item">ประสานงานเมื่อมีการตั้งค่าระบบหรือนำเข้าฐานข้อมูลใหม่</div>
-            </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="card">
-          <h3 className="section-title">ตัวเลขอ้างอิงสำหรับเจ้าหน้าที่</h3>
-          <div className="stats-row">
-            <div className="stat-chip">สมาชิกทั้งหมด {overview.members_count}</div>
-            <div className="stat-chip">สมาชิกใช้งาน {overview.active_members_count}</div>
-            <div className="stat-chip">สินเชื่อทั้งหมด {overview.loan_contracts_count}</div>
-            <div className="stat-chip">เจ้าหน้าที่ในระบบ {overview.officer_users_count}</div>
-          </div>
-          <div className="notice">ใช้ตัวเลขชุดนี้เป็นจุดเริ่มต้นก่อนเข้าไปจัดการข้อมูลเชิงลึกรายสมาชิกหรือรายสัญญา</div>
-        </section>
+          <section className="card">
+            <h3 className="section-title">ตัวเลขอ้างอิงสำหรับเจ้าหน้าที่</h3>
+            <div className="stats-row">
+              <div className="stat-chip">สมาชิกทั้งหมด {overview.members_count}</div>
+              <div className="stat-chip">สมาชิกใช้งาน {overview.active_members_count}</div>
+              <div className="stat-chip">สินเชื่อทั้งหมด {overview.loan_contracts_count}</div>
+              <div className="stat-chip">เจ้าหน้าที่ในระบบ {overview.officer_users_count}</div>
+            </div>
+            <div className="notice">ใช้ตัวเลขชุดนี้เป็นจุดเริ่มต้นก่อนเข้าไปจัดการข้อมูลเชิงลึกรายสมาชิกหรือรายสัญญา</div>
+          </section>
+        </div>
       </div>
     </div>
   );
