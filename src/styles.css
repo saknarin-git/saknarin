@@ -964,14 +964,14 @@ textarea {
   width: min(760px, 100%);
 }
 
-.passbook-preview-grid {
+.passbook-account-strip {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
   margin: 18px 0;
 }
 
-.passbook-row {
+.passbook-account-item {
   border: 1px solid #e1efe1;
   border-radius: 14px;
   padding: 12px 14px;
@@ -981,16 +981,55 @@ textarea {
   gap: 6px;
 }
 
-.passbook-row span {
+.passbook-account-item span {
   color: #557c65;
 }
 
-.passbook-row strong {
+.passbook-account-item strong {
   color: #1b4332;
 }
 
-.passbook-row-wide {
-  grid-column: 1 / -1;
+.passbook-table-shell {
+  margin: 18px 0;
+  border: 1px solid #d6e7d6;
+  border-radius: 18px;
+  overflow: auto;
+  background: linear-gradient(180deg, #fafffa 0%, #f3fbf4 100%);
+}
+
+.passbook-table {
+  width: 100%;
+  min-width: 680px;
+  border-collapse: collapse;
+}
+
+.passbook-table th,
+.passbook-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid #dcebdc;
+  text-align: left;
+  vertical-align: top;
+}
+
+.passbook-table th {
+  background: #e6f4e8;
+  color: #234f40;
+  font-size: 0.92rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.passbook-table td {
+  color: #1b4332;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.passbook-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.passbook-table td:last-child {
+  min-width: 260px;
 }
 
 .profile-dashboard-page {
@@ -1380,7 +1419,7 @@ textarea {
     flex-direction: column;
   }
 
-  .passbook-preview-grid {
+  .passbook-account-strip {
     grid-template-columns: 1fr;
   }
 }

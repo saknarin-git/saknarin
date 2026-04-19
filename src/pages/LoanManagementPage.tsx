@@ -922,16 +922,32 @@ export function LoanManagementPage() {
         <div className="modal-overlay" role="presentation">
           <div className="modal-card passbook-modal-card">
             <h3 className="section-title">สมุดคู่ฝาก</h3>
-            <div className="passbook-preview-grid">
-              <div className="passbook-row"><span>วัน/เดือน/ปี</span><strong>{preview.paid_date}</strong></div>
-              <div className="passbook-row"><span>เลขสมาชิก</span><strong>{preview.member_no}</strong></div>
-              <div className="passbook-row"><span>สมาชิก</span><strong>{preview.member_name}</strong></div>
-              <div className="passbook-row"><span>เลขที่สัญญา</span><strong>{preview.contract_no}</strong></div>
-              <div className="passbook-row"><span>ชำระดอกกี่งวด</span><strong>{preview.interest_installments_paid}</strong></div>
-              <div className="passbook-row"><span>ชำระต้น(บาท)</span><strong>{formatCurrency(preview.principal_paid)}</strong></div>
-              <div className="passbook-row"><span>ชำระดอกเบี้ย(บาท)</span><strong>{formatCurrency(preview.interest_paid)}</strong></div>
-              <div className="passbook-row"><span>หนี้คงเหลือ</span><strong>{formatCurrency(preview.remaining_balance)}</strong></div>
-              <div className="passbook-row passbook-row-wide"><span>หมายเหตุ</span><strong>{preview.note}</strong></div>
+            <div className="passbook-account-strip">
+              <div className="passbook-account-item"><span>เลขสมาชิก</span><strong>{preview.member_no}</strong></div>
+              <div className="passbook-account-item"><span>สมาชิก</span><strong>{preview.member_name}</strong></div>
+              <div className="passbook-account-item"><span>เลขที่สัญญา</span><strong>{preview.contract_no}</strong></div>
+            </div>
+            <div className="passbook-table-shell">
+              <table className="passbook-table">
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th>ชำระต้น</th>
+                    <th>ดอกเบี้ย</th>
+                    <th>หนี้คงเหลือ</th>
+                    <th>หมายเหตุ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>{preview.paid_date}</td>
+                    <td>{formatCurrency(preview.principal_paid)}</td>
+                    <td>{formatCurrency(preview.interest_paid)}</td>
+                    <td>{formatCurrency(preview.remaining_balance)}</td>
+                    <td>{preview.note}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
             <div className="actions">
               <button type="button" className="btn btn-secondary" onClick={() => { setShowPreviewModal(false); requestAnimationFrame(() => principalInputRef.current?.focus()); }}>
