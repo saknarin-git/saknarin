@@ -139,6 +139,7 @@ export interface LoanRegistryRecord {
   title: TitlePrefix;
   first_name: string;
   last_name: string;
+  loan_type_id: string | null;
   loan_amount: number;
   outstanding_amount: number;
   status: string | null;
@@ -147,6 +148,79 @@ export interface LoanRegistryRecord {
   guarantor_2: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface LoanTypeRecord {
+  id: string;
+  name: string;
+  monthly_interest_rate: number;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export type LoanPaymentMode = 'normal' | 'settlement';
+
+export interface LoanPaymentCandidate {
+  contract_no: string;
+  member_no: string;
+  title: TitlePrefix;
+  first_name: string;
+  last_name: string;
+  loan_type_id: string | null;
+  loan_type_name: string;
+  monthly_interest_rate: number;
+  loan_amount: number;
+  outstanding_amount: number;
+  overdue_interest_installments: number;
+  due_installments_count: number;
+  current_interest_due: number;
+  suggested_principal_amount: number;
+  next_working_date: string | null;
+  contract_date: string | null;
+  status: string | null;
+}
+
+export interface LoanWorkingDateEntry {
+  month: number;
+  date: string | null;
+}
+
+export interface LoanPaymentWorkspaceData {
+  member: {
+    member_no: string;
+    title: TitlePrefix;
+    first_name: string;
+    last_name: string;
+  };
+  contracts: LoanPaymentCandidate[];
+  selected_contract: LoanPaymentCandidate;
+  working_calendar_year: number;
+  working_dates: LoanWorkingDateEntry[];
+}
+
+export interface LoanPaymentPreview {
+  payment_mode: LoanPaymentMode;
+  paid_date: string;
+  contract_no: string;
+  member_no: string;
+  member_name: string;
+  principal_paid: number;
+  interest_paid: number;
+  remaining_balance: number;
+  interest_installments_paid: number;
+  note: string;
+}
+
+export interface LoanPaymentRecord extends LoanPaymentPreview {
+  id: string;
+  created_at: string;
+}
+
+export interface LoanWorkspaceConfig {
+  loan_types: LoanTypeRecord[];
+  working_calendar_year: number;
+  working_dates: LoanWorkingDateEntry[];
 }
 
 export interface PaginationMeta {

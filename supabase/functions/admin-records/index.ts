@@ -88,7 +88,7 @@ async function listMembers(search: string, page: number, pageSize: number, statu
   const { data: members, error, count } = await query;
   if (error) throw error;
 
-  const memberNos = (members ?? []).map((item) => item.member_no);
+  const memberNos = (members ?? []).map((item: { member_no: string }) => item.member_no);
 
   const [{ data: users, error: usersError }, { data: loans, error: loansError }] = memberNos.length > 0
     ? await Promise.all([
@@ -104,16 +104,16 @@ async function listMembers(search: string, page: number, pageSize: number, statu
   const userCountMap = new Map<string, number>();
   const loanCountMap = new Map<string, number>();
 
-  (users ?? []).forEach((item) => {
+  (users ?? []).forEach((item: { member_no: string }) => {
     userCountMap.set(item.member_no, (userCountMap.get(item.member_no) ?? 0) + 1);
   });
 
-  (loans ?? []).forEach((item) => {
+  (loans ?? []).forEach((item: { member_no: string }) => {
     loanCountMap.set(item.member_no, (loanCountMap.get(item.member_no) ?? 0) + 1);
   });
 
   return {
-    members: (members ?? []).map((member) => ({
+    members: (members ?? []).map((member: { member_no: string } & Record<string, unknown>) => ({
     ...member,
     linked_users: userCountMap.get(member.member_no) ?? 0,
     loan_contracts: loanCountMap.get(member.member_no) ?? 0,
@@ -128,7 +128,7 @@ async function listLoans(search: string, page: number, pageSize: number, status:
 
   let query = adminClient
     .from('loan_contracts')
-    .select('contract_no, member_no, title, first_name, last_name, loan_amount, outstanding_amount, status, contract_date, guarantor_1, guarantor_2, created_at, updated_at', { count: 'exact' })
+    .select('contract_no, member_no, title, first_name, last_name, loan_type_id, loan_amount, outstanding_amount, status, contract_date, guarantor_1, guarantor_2, created_at, updated_at', { count: 'exact' })
     .order('member_no', { ascending: true })
     .order('contract_no', { ascending: true })
     .range(from, to);
@@ -290,6 +290,7 @@ async function updateLoan(payload: Record<string, unknown>) {
   const lastName = String(payload.last_name ?? '').trim();
   const guarantor1 = String(payload.guarantor_1 ?? '').trim();
   const guarantor2 = String(payload.guarantor_2 ?? '').trim();
+  const loanTypeId = String(payload.loan_type_id ?? '').trim();
 
   if (!contractNo || !memberNo || !title || !firstName || !lastName || !guarantor1) {
     throw new Error('ข้อมูลสินเชื่อไม่ครบถ้วน');
@@ -312,6 +313,7 @@ async function updateLoan(payload: Record<string, unknown>) {
       title,
       first_name: firstName,
       last_name: lastName,
+      loan_type_id: loanTypeId || null,
       loan_amount: parseDecimal(payload.loan_amount),
       outstanding_amount: parseDecimal(payload.outstanding_amount),
       status: String(payload.status ?? '').trim() || null,
@@ -333,6 +335,7 @@ async function createLoan(payload: Record<string, unknown>) {
   const lastName = String(payload.last_name ?? '').trim();
   const guarantor1 = String(payload.guarantor_1 ?? '').trim();
   const guarantor2 = String(payload.guarantor_2 ?? '').trim();
+  const loanTypeId = String(payload.loan_type_id ?? '').trim();
 
   if (!contractNo || !memberNo || !title || !firstName || !lastName || !guarantor1) {
     throw new Error('ข้อมูลสินเชื่อไม่ครบถ้วน');
@@ -365,6 +368,7 @@ async function createLoan(payload: Record<string, unknown>) {
     title,
     first_name: firstName,
     last_name: lastName,
+    loan_type_id: loanTypeId || null,
     loan_amount: parseDecimal(payload.loan_amount),
     outstanding_amount: parseDecimal(payload.outstanding_amount),
     status: String(payload.status ?? '').trim() || null,

@@ -388,6 +388,13 @@ export function DevManagerPage() {
                 <div className="muted">{item.description}</div>
               </Link>
             ))}
+            <Link
+              to="/workspace"
+              className="shortcut-card shortcut-link-card devmanager-card-link"
+            >
+              <strong>ข้อมูลส่วนตัว</strong>
+              <div className="muted">เปิดหน้าโปรไฟล์ของบัญชีนี้เพื่อดูข้อมูลส่วนตัว แก้ไขชื่อ และเปลี่ยนรหัสผ่าน</div>
+            </Link>
           </div>
         </section>
 

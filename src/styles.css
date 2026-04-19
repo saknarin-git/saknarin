@@ -767,6 +767,220 @@ textarea {
   margin-top: 4px;
 }
 
+.loan-section-nav {
+  margin-bottom: 18px;
+}
+
+.loan-workspace-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.9fr);
+  gap: 18px;
+}
+
+.loan-payment-focus-card {
+  min-width: 0;
+}
+
+.loan-payment-topbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.loan-mode-toggle {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.loan-mode-button {
+  border: 1px solid #d8ead8;
+  border-radius: 16px;
+  background: #fbfffb;
+  padding: 12px 16px;
+  cursor: pointer;
+  font-weight: 700;
+  color: #1b4332;
+}
+
+.loan-mode-button-active {
+  background: linear-gradient(135deg, #1b4332 0%, #2d6a4f 100%);
+  color: white;
+  border-color: #2d6a4f;
+}
+
+.loan-payment-form,
+.loan-principal-form {
+  margin-top: 16px;
+}
+
+.loan-payment-field input {
+  font-size: 1.1rem;
+}
+
+.loan-payment-field-wide input {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.loan-payment-summary-grid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+.loan-payment-summary-card {
+  border: 1px solid #dcebdc;
+  border-radius: 16px;
+  background: #fbfffb;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.loan-payment-summary-card span,
+.loan-inline-chip,
+.loan-contract-meta,
+.working-day-card span {
+  color: #557c65;
+}
+
+.loan-payment-summary-card strong {
+  color: #1b4332;
+  font-size: 1.1rem;
+}
+
+.loan-payment-inline-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.loan-inline-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: #f2fff4;
+  padding: 8px 12px;
+  border: 1px solid #dcebdc;
+}
+
+.loan-contract-primary {
+  border-color: #95d5b2;
+  background: #f7fff8;
+}
+
+.loan-contract-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.loan-settings-topbar {
+  align-items: flex-start;
+}
+
+.loan-type-editor {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(180px, 0.7fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.loan-type-active-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.working-day-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.working-day-card {
+  border: 1px solid #dcebdc;
+  border-radius: 16px;
+  background: #fbfffb;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  align-items: start;
+}
+
+.working-day-card-active {
+  border-color: #95d5b2;
+  background: #f1fff3;
+}
+
+.working-day-card input[type='date'] {
+  width: 100%;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(19, 42, 19, 0.42);
+  display: grid;
+  place-items: center;
+  z-index: 80;
+  padding: 20px;
+}
+
+.modal-card {
+  width: min(680px, 100%);
+  background: white;
+  border-radius: 24px;
+  padding: 22px;
+  box-shadow: 0 28px 64px rgba(0, 0, 0, 0.18);
+}
+
+.loan-modal-card {
+  width: min(460px, 100%);
+}
+
+.passbook-modal-card {
+  width: min(760px, 100%);
+}
+
+.passbook-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 18px 0;
+}
+
+.passbook-row {
+  border: 1px solid #e1efe1;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fbfffb;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.passbook-row span {
+  color: #557c65;
+}
+
+.passbook-row strong {
+  color: #1b4332;
+}
+
+.passbook-row-wide {
+  grid-column: 1 / -1;
+}
+
 .profile-dashboard-page {
   --profile-ink: #16281f;
   --profile-deep: #173c30;
@@ -1152,6 +1366,21 @@ textarea {
   .insight-row {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .passbook-preview-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .loan-workspace-shell,
+  .loan-type-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .loan-mode-toggle {
+    width: 100%;
   }
 }
 
