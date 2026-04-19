@@ -902,7 +902,7 @@ textarea {
 
 .working-day-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 12px;
   margin-top: 16px;
 }
@@ -915,6 +915,8 @@ textarea {
   display: grid;
   gap: 10px;
   align-items: start;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .working-day-card-active {
@@ -922,8 +924,13 @@ textarea {
   background: #f1fff3;
 }
 
+.working-day-date-input,
 .working-day-card input[type='date'] {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  display: block;
 }
 
 .modal-overlay {

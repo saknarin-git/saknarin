@@ -397,16 +397,23 @@ async function updateConfig(payload: Record<string, unknown>) {
     throw new Error('กรุณากำหนดประเภทเงินกู้อย่างน้อย 1 ประเภท');
   }
 
+  const seenNames = new Set<string>();
   const normalizedLoanTypes = rawLoanTypes.map((item) => {
     const source = item && typeof item === 'object' ? item as Record<string, unknown> : {};
     const name = String(source.name ?? '').trim();
+    const normalizedName = name.toLocaleLowerCase('th-TH');
     const interestRate = Number(source.monthly_interest_rate ?? 0);
     if (!name) {
       throw new Error('กรุณากรอกชื่อประเภทเงินกู้ให้ครบถ้วน');
     }
 
+    if (seenNames.has(normalizedName)) {
+      throw new Error('ชื่อประเภทเงินกู้ซ้ำกัน กรุณาตั้งชื่อไม่ให้ซ้ำ');
+    }
+    seenNames.add(normalizedName);
+
     if (!Number.isFinite(interestRate) || interestRate < 0) {
-      throw new Error('อัตราดอกเบี้ยรายเดือนต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป');
+      throw new Error('อัตราดอกเบี้ยรายปีต้องเป็นตัวเลขตั้งแต่ 0 ขึ้นไป');
     }
 
     return {
@@ -420,6 +427,9 @@ async function updateConfig(payload: Record<string, unknown>) {
 
   const { error: upsertError } = await adminClient.from('loan_types').upsert(normalizedLoanTypes, { onConflict: 'id' });
   if (upsertError) {
+    if (upsertError.code === '23505') {
+      throw new Error('ชื่อประเภทเงินกู้ซ้ำกับข้อมูลเดิมในระบบ');
+    }
     throw upsertError;
   }
 

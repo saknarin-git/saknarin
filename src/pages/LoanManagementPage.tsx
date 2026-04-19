@@ -67,6 +67,15 @@ function formatWorkingDate(dateText: string | null) {
   return `${day}/${month}/${year}`;
 }
 
+function buildDraftLoanTypeName(existingLoanTypes: LoanTypeRecord[]) {
+  let sequence = existingLoanTypes.length + 1;
+  while (existingLoanTypes.some((item) => item.name.trim() === `ประเภทเงินกู้ ${sequence}`)) {
+    sequence += 1;
+  }
+
+  return `ประเภทเงินกู้ ${sequence}`;
+}
+
 function buildPaymentNote(paymentMode: LoanPaymentMode, principalPaid: number, interestInstallmentsPaid: number, contractNo: string) {
   if (paymentMode === 'settlement') {
     return `กลบหนี้สัญญา ${contractNo}`;
@@ -486,11 +495,12 @@ export function LoanManagementPage() {
   }
 
   function handleAddLoanType() {
+    const draftName = buildDraftLoanTypeName(loanTypes);
     setLoanTypes((current) => ([
       ...current,
       {
         id: crypto.randomUUID(),
-        name: '',
+        name: draftName,
         monthly_interest_rate: 12,
         active: true,
         created_at: new Date().toISOString(),
@@ -835,7 +845,7 @@ export function LoanManagementPage() {
             {workingDates.map((item) => (
               <label key={item.month} className={`working-day-card ${item.date ? 'working-day-card-active' : ''}`}>
                 <span>{monthLabels[item.month - 1]}</span>
-                <input type="date" value={item.date ?? ''} onChange={(event) => updateWorkingDate(item.month, event.target.value)} />
+                <input className="working-day-date-input" type="date" value={item.date ?? ''} onChange={(event) => updateWorkingDate(item.month, event.target.value)} />
               </label>
             ))}
           </div>
