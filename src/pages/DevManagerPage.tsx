@@ -6,7 +6,7 @@ import { APP_GROUP_NAME } from '../constants/appBrand';
 import { canManageRole, defaultRolePermissions, getAssignableRoles, permissionLabels, roleLabels, roleLevelLabels } from '../constants/permissions';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
-import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, PermissionKey, UserRole } from '../types';
+import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, PermissionKey, PermissionSet, UserRole } from '../types';
 import { buildCsvPreview } from '../utils/csvPreview';
 
 const defaultSettings: AppSettings = {
@@ -64,7 +64,7 @@ function getSectionFromPath(pathname: string): DevManagerSection | null {
 
 export function DevManagerPage() {
   const location = useLocation();
-  const { session } = useAuth();
+  const { session, setSessionData } = useAuth();
   const isDevAdmin = session?.user.role === 'dev_admin';
   const [users, setUsers] = useState<AppUser[]>([]);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
@@ -151,6 +151,16 @@ export function DevManagerPage() {
               allow_registration: settings.allow_registration,
             } as AppSettings,
       );
+
+      const nextPermissions: PermissionSet = isDevAdmin
+        ? settings.role_permissions[session.user.role]
+        : session.permissions;
+
+      setSessionData({
+        ...session,
+        permissions: nextPermissions,
+      });
+
       setMessage(result.message);
       await loadPanel();
     } catch (error) {
