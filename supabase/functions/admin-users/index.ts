@@ -17,6 +17,8 @@ interface LoanOverviewRow {
 
 const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'fullname', 'full_name', 'name'];
 const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด็กชาย', 'นาย', 'นาง'];
+const TEMPORARY_GUARANTOR_STATUS = 'ผู้ค้ำชั่วคราว';
+const NORMAL_MEMBER_STATUS = 'ปกติ';
 
 function normalizeHeader(value: string) {
   return value.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[\s_\-()/]+/g, '');
@@ -170,6 +172,98 @@ function isActiveStatus(status: string) {
   return !['ลาออก', 'ยกเลิก', 'ปิด', 'inactive', 'cancelled', 'closed'].some((value) => normalized.includes(value));
 }
 
+function isTemporaryGuarantorStatus(status: string | null | undefined) {
+  return String(status ?? '').includes(TEMPORARY_GUARANTOR_STATUS);
+}
+
+function isTemporaryMemberNo(memberNo: string) {
+  return /^TMP-/i.test(memberNo.trim());
+}
+
+function getResolvedLegacyStatus(status: string) {
+  const trimmed = status.trim();
+  return !trimmed || isTemporaryGuarantorStatus(trimmed) ? NORMAL_MEMBER_STATUS : trimmed;
+}
+
+async function reconcileTemporaryGuarantors(member: {
+  member_no: string;
+  title: string;
+  first_name: string;
+  last_name: string;
+  legacy_status: string;
+  active: boolean;
+}) {
+  if (isTemporaryMemberNo(member.member_no)) {
+    return false;
+  }
+
+  const { data: temporaryMembers, error: temporaryMembersError } = await adminClient
+    .from('members')
+    .select('member_no')
+    .eq('first_name', member.first_name)
+    .eq('last_name', member.last_name)
+    .neq('member_no', member.member_no)
+    .ilike('legacy_status', `%${TEMPORARY_GUARANTOR_STATUS}%`);
+
+  if (temporaryMembersError) throw temporaryMembersError;
+
+  const temporaryMemberNos = (temporaryMembers ?? [])
+    .map((item) => String(item.member_no ?? '').trim())
+    .filter(Boolean);
+
+  if (temporaryMemberNos.length === 0) {
+    return false;
+  }
+
+  const timestamp = new Date().toISOString();
+  const orFilters = temporaryMemberNos.flatMap((memberNo) => [`guarantor_1.eq.${memberNo}`, `guarantor_2.eq.${memberNo}`]).join(',');
+  const { data: loans, error: loansError } = await adminClient
+    .from('loan_contracts')
+    .select('contract_no, guarantor_1, guarantor_2')
+    .or(orFilters);
+
+  if (loansError) throw loansError;
+
+  for (const loan of loans ?? []) {
+    const guarantor1 = temporaryMemberNos.includes(String(loan.guarantor_1 ?? '').trim()) ? member.member_no : loan.guarantor_1;
+    const guarantor2 = temporaryMemberNos.includes(String(loan.guarantor_2 ?? '').trim()) ? member.member_no : loan.guarantor_2;
+
+    const { error: updateLoanError } = await adminClient
+      .from('loan_contracts')
+      .update({
+        guarantor_1: guarantor1,
+        guarantor_2: guarantor2,
+        updated_at: timestamp,
+      })
+      .eq('contract_no', loan.contract_no);
+
+    if (updateLoanError) throw updateLoanError;
+  }
+
+  const { error: updateMemberError } = await adminClient
+    .from('members')
+    .update({
+      title: member.title,
+      first_name: member.first_name,
+      last_name: member.last_name,
+      legacy_status: getResolvedLegacyStatus(member.legacy_status),
+      active: member.active,
+      updated_at: timestamp,
+    })
+    .eq('member_no', member.member_no);
+
+  if (updateMemberError) throw updateMemberError;
+
+  const { error: deleteTemporaryMembersError } = await adminClient
+    .from('members')
+    .delete()
+    .in('member_no', temporaryMemberNos);
+
+  if (deleteTemporaryMembersError) throw deleteTemporaryMembersError;
+
+  return true;
+}
+
 async function importMembers(csvText: string) {
   const { headers, rows } = parseCsv(csvText);
   const memberNoIndex = findHeaderIndex(headers, ['เลขที่สมาชิก', 'รหัสสมาชิก', 'member_no', 'memberno']);
@@ -218,6 +312,10 @@ async function importMembers(csvText: string) {
 
   const { error } = await adminClient.from('members').upsert(payload, { onConflict: 'member_no' });
   if (error) throw error;
+
+  for (const member of payload) {
+    await reconcileTemporaryGuarantors(member);
+  }
 
   return { total: payload.length, inserted, updated };
 }
