@@ -68,7 +68,7 @@ export function DevManagerPage() {
   const isDevAdmin = session?.user.role === 'dev_admin';
   const [users, setUsers] = useState<AppUser[]>([]);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
-  const [importStats, setImportStats] = useState<ImportStats>({ members_count: 0, loan_contracts_count: 0 });
+  const [importStats, setImportStats] = useState<ImportStats>({ members_count: 0, loan_contracts_count: 0, loan_payments_count: 0 });
   const [overview, setOverview] = useState<AdminOverview>(defaultOverview);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(true);
@@ -78,8 +78,12 @@ export function DevManagerPage() {
   const [loanCsvText, setLoanCsvText] = useState('');
   const [loanFileName, setLoanFileName] = useState('');
   const [loanPreview, setLoanPreview] = useState<CsvPreviewSummary | null>(null);
+  const [transactionCsvText, setTransactionCsvText] = useState('');
+  const [transactionFileName, setTransactionFileName] = useState('');
+  const [transactionPreview, setTransactionPreview] = useState<CsvPreviewSummary | null>(null);
   const [importingMembers, setImportingMembers] = useState(false);
   const [importingLoans, setImportingLoans] = useState(false);
+  const [importingTransactions, setImportingTransactions] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
   const activeSection = getSectionFromPath(location.pathname);
 
@@ -217,21 +221,30 @@ export function DevManagerPage() {
       return;
     }
 
-    setLoanCsvText(text);
-    setLoanFileName(file.name);
-    setLoanPreview(null);
+    if (target === 'loan-contracts') {
+      setLoanCsvText(text);
+      setLoanFileName(file.name);
+      setLoanPreview(null);
+      return;
+    }
+
+    setTransactionCsvText(text);
+    setTransactionFileName(file.name);
+    setTransactionPreview(null);
   }
 
   function handlePreview(importType: CsvImportType) {
-    const csvText = importType === 'members' ? memberCsvText : loanCsvText;
-    const fileName = importType === 'members' ? memberFileName : loanFileName;
+    const csvText = importType === 'members' ? memberCsvText : importType === 'loan-contracts' ? loanCsvText : transactionCsvText;
+    const fileName = importType === 'members' ? memberFileName : importType === 'loan-contracts' ? loanFileName : transactionFileName;
 
     try {
       const preview = buildCsvPreview(csvText, importType, fileName);
       if (importType === 'members') {
         setMemberPreview(preview);
-      } else {
+      } else if (importType === 'loan-contracts') {
         setLoanPreview(preview);
+      } else {
+        setTransactionPreview(preview);
       }
 
       setMessage(
@@ -246,8 +259,10 @@ export function DevManagerPage() {
       setMessage(nextMessage);
       if (importType === 'members') {
         setMemberPreview(null);
-      } else {
+      } else if (importType === 'loan-contracts') {
         setLoanPreview(null);
+      } else {
+        setTransactionPreview(null);
       }
     }
   }
@@ -257,9 +272,9 @@ export function DevManagerPage() {
       return;
     }
 
-    const csvText = importType === 'members' ? memberCsvText : loanCsvText;
-    const setLoadingState = importType === 'members' ? setImportingMembers : setImportingLoans;
-    const preview = importType === 'members' ? memberPreview : loanPreview;
+    const csvText = importType === 'members' ? memberCsvText : importType === 'loan-contracts' ? loanCsvText : transactionCsvText;
+    const setLoadingState = importType === 'members' ? setImportingMembers : importType === 'loan-contracts' ? setImportingLoans : setImportingTransactions;
+    const preview = importType === 'members' ? memberPreview : importType === 'loan-contracts' ? loanPreview : transactionPreview;
 
     if (!preview?.is_ready) {
       setMessage('กรุณากดดูตัวอย่างข้อมูลและตรวจสอบให้ผ่านก่อนนำเข้า');
@@ -683,6 +698,39 @@ export function DevManagerPage() {
           {renderPreview(loanPreview)}
         </section>
         </div>
+
+        <section className="card">
+          <h3>นำเข้าธุรกรรม Transaction</h3>
+          <div className="notice">คอลัมน์ที่รองรับตาม Google Sheet: รหัสอ้างอิง, วัน/เดือน/ปี (พ.ศ.), เลขที่สัญญา, รหัสสมาชิก, ชำระเงินต้น, ชำระดอกเบี้ย, ยอดคงเหลือ, หมายเหตุ, ผู้ทำรายการ, ชื่อ-สกุล, สถานะการทำรายการ, จำนวนงวดดอกที่ชำระ, ค้างดอกก่อนรับชำระ และค้างดอกหลังรับชำระ</div>
+          <div className="notice">ระบบจะนำเข้าลงตารางธุรกรรมรับชำระ (`loan_payments`) โดยใช้ `รหัสอ้างอิง` เป็นกุญแจสำหรับเพิ่มหรืออัปเดตรายการเดิม และจะอัปเดตยอดคงเหลือในสัญญาตามธุรกรรมล่าสุดของแต่ละเลขที่สัญญาให้อัตโนมัติ</div>
+          <div className="stats-row">
+            <div className="stat-chip">ธุรกรรมรับชำระในระบบปัจจุบัน: {importStats.loan_payments_count}</div>
+          </div>
+          <label className="field">
+            <span>เลือกไฟล์ CSV Transaction</span>
+            <input type="file" accept=".csv,text/csv" onChange={(event) => void handleFileSelection(event, 'transactions')} />
+          </label>
+          {transactionFileName && <div className="muted">ไฟล์ที่เลือก: {transactionFileName}</div>}
+          <div className="actions">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              disabled={!transactionCsvText}
+              onClick={() => handlePreview('transactions')}
+            >
+              ดูตัวอย่าง Transaction
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!transactionCsvText || importingTransactions || !transactionPreview?.is_ready}
+              onClick={() => void handleImport('transactions')}
+            >
+              {importingTransactions ? 'กำลังนำเข้า Transaction...' : 'นำเข้า Transaction'}
+            </button>
+          </div>
+          {renderPreview(transactionPreview)}
+        </section>
       </div>
     );
   }

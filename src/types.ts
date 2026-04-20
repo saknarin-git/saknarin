@@ -88,6 +88,7 @@ export interface AppSettings {
 export interface ImportStats {
   members_count: number;
   loan_contracts_count: number;
+  loan_payments_count: number;
 }
 
 export interface AdminOverview {
@@ -242,7 +243,7 @@ export interface ImportResult {
   updated: number;
 }
 
-export type CsvImportType = 'members' | 'loan-contracts';
+export type CsvImportType = 'members' | 'loan-contracts' | 'transactions';
 
 export interface CsvPreviewIssue {
   row_number: number;

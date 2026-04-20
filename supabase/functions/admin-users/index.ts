@@ -2,7 +2,7 @@ import '../_shared/edge-runtime.d.ts';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
 import { adminClient, canManageRole, ensurePermission, getDefaultRolePermissions, getRolePermissionsMatrix, normalizeRolePermissions } from '../_shared/supabaseAdmin.ts';
 
-type ImportType = 'members' | 'loan-contracts';
+type ImportType = 'members' | 'loan-contracts' | 'transactions';
 
 interface ParsedCsv {
   headers: string[];
@@ -13,6 +13,26 @@ interface LoanOverviewRow {
   loan_amount: number | null;
   outstanding_amount: number | null;
   status: string | null;
+}
+
+interface LoanPaymentImportRow {
+  external_reference: string;
+  paid_date: string;
+  contract_no: string;
+  member_no: string;
+  principal_paid: number;
+  interest_paid: number;
+  remaining_balance: number;
+  note: string | null;
+  operator_name: string | null;
+  member_name: string | null;
+  transaction_status: string | null;
+  interest_installments_paid: number;
+  overdue_interest_before: number;
+  overdue_interest_after: number;
+  payment_mode: 'normal' | 'settlement';
+  created_by: string | null;
+  created_at: string;
 }
 
 const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'ชื่อ-นามสกุล', 'ชื่อ นามสกุล', 'ชื่อผู้กู้', 'ชื่อผู้กู้สกุล', 'ชื่อผู้กู้-สกุล', 'ชื่อผู้กู้-นามสกุล', 'ชื่อผู้กู้ นามสกุล', 'ชื่อผู้กู้/สกุล', 'ชื่อ-สกุลผู้กู้', 'ชื่อสมาชิก', 'fullname', 'full_name', 'name'];
@@ -186,6 +206,231 @@ function parseDate(value: string) {
   }
 
   throw new Error(`วันที่ไม่ถูกต้อง: ${value}`);
+}
+
+function parseInteger(value: string, fallback = 0) {
+  const normalized = value.replace(/,/g, '').trim();
+  if (!normalized) return fallback;
+  if (!/^[-+]?\d+$/.test(normalized)) {
+    throw new Error(`จำนวนเต็มไม่ถูกต้อง: ${value}`);
+  }
+  return Number(normalized);
+}
+
+function normalizeLookupValue(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
+function detectPaymentMode(status: string, note: string, remainingBalance: number) {
+  const combined = `${status} ${note}`.toLowerCase();
+  if (combined.includes('กลบหนี้') || combined.includes('settlement')) {
+    return 'settlement';
+  }
+
+  if (remainingBalance <= 0 && (combined.includes('ปิด') || combined.includes('closed'))) {
+    return 'settlement';
+  }
+
+  return 'normal';
+}
+
+function buildImportedPaymentNote(note: string, status: string, installments: number, principalPaid: number, interestPaid: number, remainingBalance: number) {
+  const trimmedNote = note.trim();
+  if (trimmedNote) {
+    return trimmedNote;
+  }
+
+  if (detectPaymentMode(status, trimmedNote, remainingBalance) === 'settlement') {
+    return 'กลบหนี้';
+  }
+
+  if (installments > 1) {
+    return `ชำระดอกเบี้ย ${installments} งวด`;
+  }
+
+  if (principalPaid > 0 && interestPaid > 0) {
+    return 'ชำระต้นพร้อมดอกเบี้ยประจำงวด';
+  }
+
+  if (interestPaid > 0) {
+    return 'ชำระเฉพาะดอกเบี้ยประจำงวด';
+  }
+
+  return null;
+}
+
+async function syncLoanBalancesFromPayments(contractNos: string[]) {
+  const uniqueContractNos = [...new Set(contractNos.filter(Boolean))];
+  if (uniqueContractNos.length === 0) {
+    return;
+  }
+
+  const { data: contracts, error: contractsError } = await adminClient
+    .from('loan_contracts')
+    .select('contract_no, status')
+    .in('contract_no', uniqueContractNos);
+
+  if (contractsError) throw contractsError;
+
+  const { data: payments, error: paymentsError } = await adminClient
+    .from('loan_payments')
+    .select('contract_no, paid_date, remaining_balance, transaction_status, created_at')
+    .in('contract_no', uniqueContractNos)
+    .order('paid_date', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (paymentsError) throw paymentsError;
+
+  const contractStatusMap = new Map((contracts ?? []).map((item) => [String(item.contract_no), item.status ?? null]));
+
+  const latestByContract = new Map<string, { remaining_balance: number; transaction_status: string | null }>();
+  for (const payment of payments ?? []) {
+    if (!latestByContract.has(payment.contract_no)) {
+      latestByContract.set(payment.contract_no, {
+        remaining_balance: Number(payment.remaining_balance ?? 0),
+        transaction_status: payment.transaction_status ?? null,
+      });
+    }
+  }
+
+  for (const [contractNo, latest] of latestByContract.entries()) {
+    const { error: updateError } = await adminClient
+      .from('loan_contracts')
+      .update({
+        outstanding_amount: latest.remaining_balance,
+        status: latest.remaining_balance <= 0
+          ? (latest.transaction_status || 'ปิดบัญชี')
+          : (latest.transaction_status || contractStatusMap.get(contractNo) || null),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('contract_no', contractNo);
+
+    if (updateError) throw updateError;
+  }
+}
+
+async function importLoanTransactions(csvText: string) {
+  const { headers, rows } = parseCsv(csvText);
+  const referenceIndex = findHeaderIndex(headers, ['รหัสอ้างอิง', 'reference_id', 'referenceid', 'external_reference', 'transaction_reference']);
+  const paidDateIndex = findHeaderIndex(headers, ['วัน/เดือน/ปี (พ.ศ.)', 'วันเดือนปี(พ.ศ.)', 'วัน/เดือน/ปี', 'วันที่ชำระ', 'paid_date', 'payment_date']);
+  const contractNoIndex = findHeaderIndex(headers, ['เลขที่สัญญา', 'contract_no', 'contractno']);
+  const memberNoIndex = findHeaderIndex(headers, ['รหัสสมาชิก', 'เลขที่สมาชิก', 'member_no', 'memberno']);
+  const principalPaidIndex = findHeaderIndex(headers, ['ชำระเงินต้น', 'principal_paid', 'principal']);
+  const interestPaidIndex = findHeaderIndex(headers, ['ชำระดอกเบี้ย', 'interest_paid', 'interest']);
+  const remainingBalanceIndex = findHeaderIndex(headers, ['ยอดคงเหลือ', 'remaining_balance', 'balance']);
+  const noteIndex = findHeaderIndex(headers, ['หมายเหตุ', 'note', 'remark', 'remarks']);
+  const operatorIndex = findHeaderIndex(headers, ['ผู้ทำรายการ', 'operator', 'operator_name', 'processed_by', 'username']);
+  const memberNameIndex = findHeaderIndex(headers, ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ-นามสกุล', 'ชื่อ นามสกุล', 'fullname', 'full_name', 'name']);
+  const transactionStatusIndex = findHeaderIndex(headers, ['สถานะการทำรายการ', 'transaction_status', 'payment_status']);
+  const installmentsIndex = findHeaderIndex(headers, ['จำนวนงวดดอกที่ชำระ', 'งวดดอกที่ชำระ', 'interest_installments_paid', 'paid_installments']);
+  const overdueBeforeIndex = findHeaderIndex(headers, ['ค้างดอกก่อนรับชำระ', 'overdue_interest_before', 'interest_overdue_before']);
+  const overdueAfterIndex = findHeaderIndex(headers, ['ค้างดอกหลังรับชำระ', 'overdue_interest_after', 'interest_overdue_after']);
+
+  if ([referenceIndex, paidDateIndex, contractNoIndex, memberNoIndex, principalPaidIndex, interestPaidIndex, remainingBalanceIndex, noteIndex, operatorIndex, memberNameIndex, transactionStatusIndex, installmentsIndex, overdueBeforeIndex, overdueAfterIndex].some((index) => index < 0)) {
+    throw new Error('ไฟล์ Transaction ต้องมีคอลัมน์ตามหัวตารางที่กำหนดครบทั้งหมด');
+  }
+
+  const operatorValues = [...new Set(rows.map((row) => getCell(row, operatorIndex)).filter(Boolean))];
+  const { data: users, error: usersError } = operatorValues.length > 0
+    ? await adminClient.from('app_users').select('id, username, title, first_name, last_name')
+    : { data: [], error: null };
+
+  if (usersError) throw usersError;
+
+  const operatorMap = new Map<string, string>();
+  for (const user of users ?? []) {
+    const fullName = `${user.title ?? ''}${user.first_name ?? ''} ${user.last_name ?? ''}`.trim();
+    const bareName = `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim();
+    [String(user.username ?? ''), fullName, bareName].forEach((value) => {
+      const normalized = normalizeLookupValue(value);
+      if (normalized) {
+        operatorMap.set(normalized, user.id);
+      }
+    });
+  }
+
+  const payload: LoanPaymentImportRow[] = rows.map((row, rowIndex) => {
+    const externalReference = getCell(row, referenceIndex);
+    const paidDate = parseDate(getCell(row, paidDateIndex));
+    const contractNo = getCell(row, contractNoIndex);
+    const memberNo = getCell(row, memberNoIndex);
+    const principalPaid = parseDecimal(getCell(row, principalPaidIndex));
+    const interestPaid = parseDecimal(getCell(row, interestPaidIndex));
+    const remainingBalance = parseDecimal(getCell(row, remainingBalanceIndex));
+    const note = getCell(row, noteIndex);
+    const operatorName = getCell(row, operatorIndex);
+    const memberName = getCell(row, memberNameIndex);
+    const transactionStatus = getCell(row, transactionStatusIndex);
+    const interestInstallmentsPaid = parseInteger(getCell(row, installmentsIndex), 0);
+    const overdueInterestBefore = parseInteger(getCell(row, overdueBeforeIndex), 0);
+    const overdueInterestAfter = parseInteger(getCell(row, overdueAfterIndex), 0);
+    const paymentMode = detectPaymentMode(transactionStatus, note, remainingBalance);
+
+    if (!externalReference || !paidDate || !contractNo || !memberNo || !memberName) {
+      throw new Error(`ข้อมูล Transaction ไม่ครบถ้วนที่แถว ${rowIndex + 2}`);
+    }
+
+    return {
+      external_reference: externalReference,
+      paid_date: paidDate,
+      contract_no: contractNo,
+      member_no: memberNo,
+      principal_paid: principalPaid,
+      interest_paid: interestPaid,
+      remaining_balance: remainingBalance,
+      note: buildImportedPaymentNote(note, transactionStatus, interestInstallmentsPaid, principalPaid, interestPaid, remainingBalance),
+      operator_name: operatorName || null,
+      member_name: memberName || null,
+      transaction_status: transactionStatus || null,
+      interest_installments_paid: interestInstallmentsPaid,
+      overdue_interest_before: overdueInterestBefore,
+      overdue_interest_after: overdueInterestAfter,
+      payment_mode: paymentMode,
+      created_by: operatorMap.get(normalizeLookupValue(operatorName)) ?? null,
+      created_at: new Date().toISOString(),
+    };
+  });
+
+  const contractNos = [...new Set(payload.map((item) => item.contract_no))];
+  const memberNos = [...new Set(payload.map((item) => item.member_no))];
+  const [{ data: contracts, error: contractsError }, { data: members, error: membersError }, { data: existing, error: existingError }] = await Promise.all([
+    adminClient.from('loan_contracts').select('contract_no, member_no').in('contract_no', contractNos),
+    adminClient.from('members').select('member_no').in('member_no', memberNos),
+    adminClient.from('loan_payments').select('external_reference').in('external_reference', payload.map((item) => item.external_reference)),
+  ]);
+
+  if (contractsError || membersError || existingError) {
+    throw contractsError ?? membersError ?? existingError;
+  }
+
+  const contractMap = new Map((contracts ?? []).map((item) => [String(item.contract_no), String(item.member_no)]));
+  const memberSet = new Set((members ?? []).map((item) => String(item.member_no)));
+
+  for (const item of payload) {
+    if (!memberSet.has(item.member_no)) {
+      throw new Error(`ไม่พบรหัสสมาชิกในระบบ: ${item.member_no}`);
+    }
+
+    const contractMemberNo = contractMap.get(item.contract_no);
+    if (!contractMemberNo) {
+      throw new Error(`ไม่พบเลขที่สัญญาในระบบ: ${item.contract_no}`);
+    }
+
+    if (contractMemberNo !== item.member_no) {
+      throw new Error(`เลขที่สัญญา ${item.contract_no} ไม่ได้ผูกกับรหัสสมาชิก ${item.member_no}`);
+    }
+  }
+
+  const existingSet = new Set((existing ?? []).map((item) => String(item.external_reference)));
+  const inserted = payload.filter((item) => !existingSet.has(item.external_reference)).length;
+  const updated = payload.length - inserted;
+
+  const { error: upsertError } = await adminClient.from('loan_payments').upsert(payload, { onConflict: 'external_reference' });
+  if (upsertError) throw upsertError;
+
+  await syncLoanBalancesFromPayments(contractNos);
+
+  return { total: payload.length, inserted, updated };
 }
 
 function isActiveStatus(status: string) {
@@ -436,6 +681,7 @@ Deno.serve(async (request) => {
         { count: membersCount, error: membersCountError },
         { count: activeMembersCount, error: activeMembersCountError },
         { count: contractsCount, error: contractsCountError },
+        { count: paymentsCount, error: paymentsCountError },
         { data: loanRows, error: loanRowsError },
       ] = await Promise.all([
         adminClient
@@ -446,11 +692,12 @@ Deno.serve(async (request) => {
         adminClient.from('members').select('*', { count: 'exact', head: true }),
         adminClient.from('members').select('*', { count: 'exact', head: true }).eq('active', true),
         adminClient.from('loan_contracts').select('*', { count: 'exact', head: true }),
+        adminClient.from('loan_payments').select('*', { count: 'exact', head: true }),
         adminClient.from('loan_contracts').select('loan_amount, outstanding_amount, status'),
       ]);
 
-      if (usersError || settingsError || membersCountError || activeMembersCountError || contractsCountError || loanRowsError) {
-        throw usersError ?? settingsError ?? membersCountError ?? activeMembersCountError ?? contractsCountError ?? loanRowsError;
+      if (usersError || settingsError || membersCountError || activeMembersCountError || contractsCountError || paymentsCountError || loanRowsError) {
+        throw usersError ?? settingsError ?? membersCountError ?? activeMembersCountError ?? contractsCountError ?? paymentsCountError ?? loanRowsError;
       }
 
       const usersList = users ?? [];
@@ -483,6 +730,7 @@ Deno.serve(async (request) => {
           import_stats: {
             members_count: membersCount ?? 0,
             loan_contracts_count: contractsCount ?? 0,
+            loan_payments_count: paymentsCount ?? 0,
           },
           overview: {
             members_count: membersCount ?? 0,
@@ -507,7 +755,7 @@ Deno.serve(async (request) => {
     if (request.method === 'POST') {
       const { importType, csvText } = await request.json() as { importType?: ImportType; csvText?: string };
 
-      if (!importType || !['members', 'loan-contracts'].includes(importType)) {
+      if (!importType || !['members', 'loan-contracts', 'transactions'].includes(importType)) {
         return jsonResponse({ success: false, message: 'ประเภทการนำเข้าไม่ถูกต้อง' }, 400);
       }
 
@@ -517,11 +765,13 @@ Deno.serve(async (request) => {
 
       const result = importType === 'members'
         ? await importMembers(csvText)
-        : await importLoanContracts(csvText);
+        : importType === 'loan-contracts'
+          ? await importLoanContracts(csvText)
+          : await importLoanTransactions(csvText);
 
       return jsonResponse({
         success: true,
-        message: `นำเข้าข้อมูล${importType === 'members' ? 'สมาชิก' : 'สัญญาเงินกู้'}เรียบร้อย ${result.total} รายการ (เพิ่ม ${result.inserted}, อัปเดต ${result.updated})`,
+        message: `นำเข้าข้อมูล${importType === 'members' ? 'สมาชิก' : importType === 'loan-contracts' ? 'สัญญาเงินกู้' : 'ธุรกรรมรับชำระ'}เรียบร้อย ${result.total} รายการ (เพิ่ม ${result.inserted}, อัปเดต ${result.updated})`,
         data: result,
       });
     }

@@ -41,7 +41,7 @@ export async function updateSettings(token: string, settings: AppSettings) {
   );
 }
 
-export async function importCsvData(token: string, importType: 'members' | 'loan-contracts', csvText: string) {
+export async function importCsvData(token: string, importType: 'members' | 'loan-contracts' | 'transactions', csvText: string) {
   return apiRequest<{ success: boolean; message: string; data: ImportResult }>(
     'admin-users',
     {

@@ -14,16 +14,45 @@ const LOAN_HEADERS = [
   'ผู้ค้ำประกันคนที่ 1',
   'ผู้ค้ำประกันคนที่ 2',
 ];
+const TRANSACTION_HEADERS = [
+  'รหัสอ้างอิง',
+  'วัน/เดือน/ปี (พ.ศ.)',
+  'เลขที่สัญญา',
+  'รหัสสมาชิก',
+  'ชำระเงินต้น',
+  'ชำระดอกเบี้ย',
+  'ยอดคงเหลือ',
+  'หมายเหตุ',
+  'ผู้ทำรายการ',
+  'ชื่อ-สกุล',
+  'สถานะการทำรายการ',
+  'จำนวนงวดดอกที่ชำระ',
+  'ค้างดอกก่อนรับชำระ',
+  'ค้างดอกหลังรับชำระ',
+];
 
 const HEADER_ALIASES: Record<string, string[]> = {
+  'รหัสอ้างอิง': ['รหัสอ้างอิง', 'reference_id', 'referenceid', 'external_reference', 'transaction_reference'],
   'เลขที่สมาชิก': ['เลขที่สมาชิก', 'รหัสสมาชิก', 'member_no', 'memberno'],
+  'รหัสสมาชิก': ['รหัสสมาชิก', 'เลขที่สมาชิก', 'member_no', 'memberno'],
   'เลขที่สัญญา': ['เลขที่สัญญา', 'contract_no', 'contractno'],
   'คำนำหน้าชื่อ': ['คำนำหน้าชื่อ', 'คำหนำหน้าชื่อ', 'คำนำหน้า', 'title'],
   'ชื่อ': ['ชื่อ', 'first_name', 'firstname'],
   'สกุล': ['สกุล', 'นามสกุล', 'last_name', 'lastname'],
   'สถานะ': ['สถานะ', 'status'],
+  'วัน/เดือน/ปี (พ.ศ.)': ['วัน/เดือน/ปี (พ.ศ.)', 'วันเดือนปี(พ.ศ.)', 'วัน/เดือน/ปี', 'วันที่ชำระ', 'paid_date', 'payment_date'],
+  'ชำระเงินต้น': ['ชำระเงินต้น', 'principal_paid', 'principal'],
+  'ชำระดอกเบี้ย': ['ชำระดอกเบี้ย', 'interest_paid', 'interest'],
   'ยอดเงินกู้': ['ยอดเงินกู้', 'loan_amount', 'loanamount'],
   'ยอดคงค้าง': ['ยอดคงค้าง', 'outstanding_amount', 'outstandingamount'],
+  'ยอดคงเหลือ': ['ยอดคงเหลือ', 'remaining_balance', 'balance'],
+  'หมายเหตุ': ['หมายเหตุ', 'note', 'remark', 'remarks'],
+  'ผู้ทำรายการ': ['ผู้ทำรายการ', 'operator', 'operator_name', 'processed_by', 'username'],
+  'ชื่อ-สกุล': ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ-นามสกุล', 'ชื่อ นามสกุล', 'fullname', 'full_name', 'name'],
+  'สถานะการทำรายการ': ['สถานะการทำรายการ', 'transaction_status', 'payment_status'],
+  'จำนวนงวดดอกที่ชำระ': ['จำนวนงวดดอกที่ชำระ', 'งวดดอกที่ชำระ', 'interest_installments_paid', 'paid_installments'],
+  'ค้างดอกก่อนรับชำระ': ['ค้างดอกก่อนรับชำระ', 'overdue_interest_before', 'interest_overdue_before'],
+  'ค้างดอกหลังรับชำระ': ['ค้างดอกหลังรับชำระ', 'overdue_interest_after', 'interest_overdue_after'],
   'วันที่สร้างสัญญา': ['วันที่สร้างสัญญา', 'วันที่ทำสัญญา', 'contract_date', 'created_at'],
   'ผู้ค้ำประกันคนที่ 1': ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'ผู้ค้ำประกัน1', 'ผู้ค้ำประกัน 1', 'ผู้ค้ำที่1', 'ผู้ค้ำที่ 1', 'ผู้ค้ำ1', 'ผู้ค้ำ 1', 'ชื่อผู้ค้ำคนที่1', 'ชื่อผู้ค้ำคนที่ 1', 'guarantor_1', 'guarantor1'],
   'ผู้ค้ำประกันคนที่ 2': ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'ผู้ค้ำประกัน2', 'ผู้ค้ำประกัน 2', 'ผู้ค้ำที่2', 'ผู้ค้ำที่ 2', 'ผู้ค้ำ2', 'ผู้ค้ำ 2', 'ชื่อผู้ค้ำคนที่2', 'ชื่อผู้ค้ำคนที่ 2', 'guarantor_2', 'guarantor2'],
@@ -103,7 +132,15 @@ function parseCsv(text: string) {
 }
 
 function getRequiredHeaders(importType: CsvImportType) {
-  return importType === 'members' ? MEMBER_HEADERS : LOAN_HEADERS;
+  if (importType === 'members') {
+    return MEMBER_HEADERS;
+  }
+
+  if (importType === 'loan-contracts') {
+    return LOAN_HEADERS;
+  }
+
+  return TRANSACTION_HEADERS;
 }
 
 function findMatchingHeader(headers: string[], expectedHeader: string) {
@@ -296,6 +333,24 @@ function validateLoanRow(row: Record<string, string>) {
   return messages;
 }
 
+function validateTransactionRow(row: Record<string, string>) {
+  const messages: string[] = [];
+
+  if (!row['รหัสอ้างอิง']) messages.push('รหัสอ้างอิงว่าง');
+  if (!row['เลขที่สัญญา']) messages.push('เลขที่สัญญาว่าง');
+  if (!row['รหัสสมาชิก']) messages.push('รหัสสมาชิกว่าง');
+  if (!row['ชื่อ-สกุล']) messages.push('ชื่อ-สกุลว่าง');
+  if (!isValidDate(row['วัน/เดือน/ปี (พ.ศ.)'])) messages.push('วัน/เดือน/ปี (พ.ศ.) ไม่ถูกต้อง');
+  if (!isValidDecimal(row['ชำระเงินต้น'])) messages.push('ชำระเงินต้นไม่ใช่ตัวเลข');
+  if (!isValidDecimal(row['ชำระดอกเบี้ย'])) messages.push('ชำระดอกเบี้ยไม่ใช่ตัวเลข');
+  if (!isValidDecimal(row['ยอดคงเหลือ'])) messages.push('ยอดคงเหลือไม่ใช่ตัวเลข');
+  if (row['จำนวนงวดดอกที่ชำระ'] && !/^\d+$/.test(row['จำนวนงวดดอกที่ชำระ'].trim())) messages.push('จำนวนงวดดอกที่ชำระไม่ถูกต้อง');
+  if (row['ค้างดอกก่อนรับชำระ'] && !/^\d+$/.test(row['ค้างดอกก่อนรับชำระ'].trim())) messages.push('ค้างดอกก่อนรับชำระไม่ถูกต้อง');
+  if (row['ค้างดอกหลังรับชำระ'] && !/^\d+$/.test(row['ค้างดอกหลังรับชำระ'].trim())) messages.push('ค้างดอกหลังรับชำระไม่ถูกต้อง');
+
+  return messages;
+}
+
 function validateRows(
   importType: CsvImportType,
   headers: string[],
@@ -306,7 +361,11 @@ function validateRows(
 
   rows.forEach((row, index) => {
     const mappedRow = toMappedRow(headers, requiredHeaders, row);
-    const messages = importType === 'members' ? validateMembersRow(mappedRow) : validateLoanRow(mappedRow);
+    const messages = importType === 'members'
+      ? validateMembersRow(mappedRow)
+      : importType === 'loan-contracts'
+        ? validateLoanRow(mappedRow)
+        : validateTransactionRow(mappedRow);
 
     if (messages.length > 0) {
       issues.push({
