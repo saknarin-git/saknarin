@@ -20,11 +20,19 @@ const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด�
 const TEMPORARY_GUARANTOR_STATUS = 'ผู้ค้ำชั่วคราว';
 const NORMAL_MEMBER_STATUS = 'ปกติ';
 
+function detectDelimiter(text: string) {
+  const firstLine = text.split(/\r?\n/).find((line) => line.trim().length > 0) ?? '';
+  const tabCount = (firstLine.match(/\t/g) ?? []).length;
+  const commaCount = (firstLine.match(/,/g) ?? []).length;
+  return tabCount > commaCount ? '\t' : ',';
+}
+
 function normalizeHeader(value: string) {
   return value.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[\s_\-()/]+/g, '');
 }
 
 function parseCsv(text: string): ParsedCsv {
+  const delimiter = detectDelimiter(text);
   const rows: string[][] = [];
   let current = '';
   let row: string[] = [];
@@ -44,7 +52,7 @@ function parseCsv(text: string): ParsedCsv {
       continue;
     }
 
-    if (char === ',' && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       row.push(current.trim());
       current = '';
       continue;
@@ -346,8 +354,8 @@ async function importLoanContracts(csvText: string) {
   const outstandingAmountIndex = findHeaderIndex(headers, ['ยอดคงค้าง', 'outstanding_amount', 'outstandingamount']);
   const statusIndex = findHeaderIndex(headers, ['สถานะ', 'status']);
   const contractDateIndex = findHeaderIndex(headers, ['วันที่สร้างสัญญา', 'วันที่ทำสัญญา', 'contract_date', 'created_at']);
-  const guarantor1Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'ผู้ค้ำที่1', 'ผู้ค้ำที่ 1', 'ผู้ค้ำ1', 'ผู้ค้ำ 1', 'ชื่อผู้ค้ำคนที่1', 'ชื่อผู้ค้ำคนที่ 1', 'guarantor_1', 'guarantor1']);
-  const guarantor2Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'ผู้ค้ำที่2', 'ผู้ค้ำที่ 2', 'ผู้ค้ำ2', 'ผู้ค้ำ 2', 'ชื่อผู้ค้ำคนที่2', 'ชื่อผู้ค้ำคนที่ 2', 'guarantor_2', 'guarantor2']);
+  const guarantor1Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'ผู้ค้ำประกัน1', 'ผู้ค้ำประกัน 1', 'ผู้ค้ำที่1', 'ผู้ค้ำที่ 1', 'ผู้ค้ำ1', 'ผู้ค้ำ 1', 'ชื่อผู้ค้ำคนที่1', 'ชื่อผู้ค้ำคนที่ 1', 'guarantor_1', 'guarantor1']);
+  const guarantor2Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'ผู้ค้ำประกัน2', 'ผู้ค้ำประกัน 2', 'ผู้ค้ำที่2', 'ผู้ค้ำที่ 2', 'ผู้ค้ำ2', 'ผู้ค้ำ 2', 'ชื่อผู้ค้ำคนที่2', 'ชื่อผู้ค้ำคนที่ 2', 'guarantor_2', 'guarantor2']);
 
   if ([memberNoIndex, contractNoIndex, loanAmountIndex, outstandingAmountIndex, statusIndex, contractDateIndex, guarantor1Index].some((index) => index < 0) || (firstNameIndex < 0 && fullNameIndex < 0)) {
     throw new Error('ไฟล์สัญญาเงินกู้ต้องมีคอลัมน์ เลขที่สมาชิก, เลขที่สัญญา, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1 และอย่างน้อยคอลัมน์ชื่อผู้กู้ 1 ช่อง เช่น ชื่อ, ชื่อผู้กู้ หรือ ชื่อ-สกุล');

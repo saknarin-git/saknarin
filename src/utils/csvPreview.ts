@@ -25,18 +25,26 @@ const HEADER_ALIASES: Record<string, string[]> = {
   'ยอดเงินกู้': ['ยอดเงินกู้', 'loan_amount', 'loanamount'],
   'ยอดคงค้าง': ['ยอดคงค้าง', 'outstanding_amount', 'outstandingamount'],
   'วันที่สร้างสัญญา': ['วันที่สร้างสัญญา', 'วันที่ทำสัญญา', 'contract_date', 'created_at'],
-  'ผู้ค้ำประกันคนที่ 1': ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'ผู้ค้ำที่1', 'ผู้ค้ำที่ 1', 'ผู้ค้ำ1', 'ผู้ค้ำ 1', 'ชื่อผู้ค้ำคนที่1', 'ชื่อผู้ค้ำคนที่ 1', 'guarantor_1', 'guarantor1'],
-  'ผู้ค้ำประกันคนที่ 2': ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'ผู้ค้ำที่2', 'ผู้ค้ำที่ 2', 'ผู้ค้ำ2', 'ผู้ค้ำ 2', 'ชื่อผู้ค้ำคนที่2', 'ชื่อผู้ค้ำคนที่ 2', 'guarantor_2', 'guarantor2'],
+  'ผู้ค้ำประกันคนที่ 1': ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'ผู้ค้ำประกัน1', 'ผู้ค้ำประกัน 1', 'ผู้ค้ำที่1', 'ผู้ค้ำที่ 1', 'ผู้ค้ำ1', 'ผู้ค้ำ 1', 'ชื่อผู้ค้ำคนที่1', 'ชื่อผู้ค้ำคนที่ 1', 'guarantor_1', 'guarantor1'],
+  'ผู้ค้ำประกันคนที่ 2': ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'ผู้ค้ำประกัน2', 'ผู้ค้ำประกัน 2', 'ผู้ค้ำที่2', 'ผู้ค้ำที่ 2', 'ผู้ค้ำ2', 'ผู้ค้ำ 2', 'ชื่อผู้ค้ำคนที่2', 'ชื่อผู้ค้ำคนที่ 2', 'guarantor_2', 'guarantor2'],
 };
 
 const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'ชื่อ-นามสกุล', 'ชื่อ นามสกุล', 'ชื่อผู้กู้', 'ชื่อผู้กู้สกุล', 'ชื่อผู้กู้-สกุล', 'ชื่อผู้กู้-นามสกุล', 'ชื่อผู้กู้ นามสกุล', 'ชื่อผู้กู้/สกุล', 'ชื่อ-สกุลผู้กู้', 'ชื่อสมาชิก', 'fullname', 'full_name', 'name'];
 const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด็กชาย', 'นาย', 'นาง'];
+
+function detectDelimiter(text: string) {
+  const firstLine = text.split(/\r?\n/).find((line) => line.trim().length > 0) ?? '';
+  const tabCount = (firstLine.match(/\t/g) ?? []).length;
+  const commaCount = (firstLine.match(/,/g) ?? []).length;
+  return tabCount > commaCount ? '\t' : ',';
+}
 
 function normalizeHeader(value: string) {
   return value.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[\s_\-()/]+/g, '');
 }
 
 function parseCsv(text: string) {
+  const delimiter = detectDelimiter(text);
   const rows: string[][] = [];
   let current = '';
   let row: string[] = [];
@@ -56,7 +64,7 @@ function parseCsv(text: string) {
       continue;
     }
 
-    if (char === ',' && !inQuotes) {
+    if (char === delimiter && !inQuotes) {
       row.push(current.trim());
       current = '';
       continue;
