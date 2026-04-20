@@ -1781,6 +1781,17 @@ textarea {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   }
 
+  .profile-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .profile-dashboard-card,
+  .profile-dashboard-card-wide,
+  .profile-dashboard-card-tall {
+    grid-column: span 12;
+  }
+}
+
 
 @media (prefers-reduced-motion: reduce) {
   .login-page::before,
@@ -1858,16 +1869,6 @@ textarea {
   100% {
     transform: translate3d(0, 0, 0) scale(1);
     opacity: 0.72;
-  }
-}
-  .profile-stats-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .profile-dashboard-card,
-  .profile-dashboard-card-wide,
-  .profile-dashboard-card-tall {
-    grid-column: span 12;
   }
 }
 
