@@ -184,6 +184,78 @@ function getNextWorkingDate(workingDates: Array<{ month: number; date: string | 
     .sort((left, right) => String(left.date).localeCompare(String(right.date)))[0]?.date ?? null;
 }
 
+async function getGuaranteeObligations(memberNo: string) {
+  const { data, error } = await adminClient
+    .from('loan_contracts')
+    .select('contract_no, member_no, outstanding_amount, guarantor_1, guarantor_2')
+    .gt('outstanding_amount', 0)
+    .neq('member_no', memberNo)
+    .or(`guarantor_1.eq.${memberNo},guarantor_2.eq.${memberNo}`);
+
+  if (error) {
+    throw error;
+  }
+
+  return (data ?? []).map((item) => ({
+    contract_no: String(item.contract_no ?? ''),
+    member_no: String(item.member_no ?? ''),
+    outstanding_amount: Number(item.outstanding_amount ?? 0),
+  }));
+}
+
+async function getDueInterestContracts(memberNo: string, paidDateText: string) {
+  const config = await getConfig(getPaymentYear(paidDateText));
+  const { data: contracts, error: contractsError } = await adminClient
+    .from('loan_contracts')
+    .select('contract_no, contract_date')
+    .eq('member_no', memberNo)
+    .gt('outstanding_amount', 0);
+
+  if (contractsError) {
+    throw contractsError;
+  }
+
+  if (!contracts || contracts.length === 0) {
+    return [];
+  }
+
+  const installmentsPaidMap = await getInterestInstallmentsPaid(contracts.map((item) => item.contract_no), getPaymentYear(paidDateText), paidDateText);
+
+  return contracts
+    .map((contract) => {
+      const applicableWorkingDates = buildApplicableWorkingDates(config.working_dates, contract.contract_date, paidDateText);
+      const dueInstallmentsCount = Math.max(0, applicableWorkingDates.length - (installmentsPaidMap.get(contract.contract_no) ?? 0));
+      return {
+        contract_no: contract.contract_no,
+        due_installments_count: dueInstallmentsCount,
+      };
+    })
+    .filter((contract) => contract.due_installments_count > 0);
+}
+
+function buildSettlementGuard(
+  contracts: Array<{ contract_no: string; due_installments_count: number }>,
+  guaranteeObligations: Array<{ contract_no: string; member_no: string; outstanding_amount: number }>,
+) {
+  const contractsWithDueInterest = contracts.filter((item) => item.due_installments_count > 0);
+  const reasons: string[] = [];
+
+  if (contractsWithDueInterest.length > 0) {
+    reasons.push(`สมาชิกยังมีดอกเบี้ยที่ถึงกำหนดชำระ ${contractsWithDueInterest.length} สัญญา ต้องให้ดอกเบี้ยค้างชำระรวมงวดปัจจุบันเท่ากับ 0 ก่อนจึงจะกลบหนี้ได้`);
+  }
+
+  if (guaranteeObligations.length > 0) {
+    reasons.push(`สมาชิกมีภาระค้ำประกันเงินกู้ให้สมาชิกรายอื่น ${guaranteeObligations.length} สัญญา จึงยังไม่สามารถกลบหนี้ได้`);
+  }
+
+  return {
+    blocked: reasons.length > 0,
+    reasons,
+    due_interest_contract_nos: contractsWithDueInterest.map((item) => item.contract_no),
+    guaranteed_contract_nos: guaranteeObligations.map((item) => item.contract_no),
+  };
+}
+
 async function getInterestInstallmentsPaid(contractNos: string[], year: number, paidDateText: string) {
   if (contractNos.length === 0) {
     return new Map<string, number>();
@@ -241,7 +313,10 @@ async function getPaymentWorkspace(memberNo: string, mode: LoanPaymentMode, paid
 
   const activeTypeMap = new Map(config.loan_types.map((item) => [item.id, item]));
   const fallbackLoanType = config.loan_types.find((item) => item.active) ?? config.loan_types[0];
-  const installmentsPaidMap = await getInterestInstallmentsPaid((contracts ?? []).map((item) => item.contract_no), getPaymentYear(paidDateText), paidDateText);
+  const [installmentsPaidMap, guaranteeObligations] = await Promise.all([
+    getInterestInstallmentsPaid((contracts ?? []).map((item) => item.contract_no), getPaymentYear(paidDateText), paidDateText),
+    mode === 'settlement' ? getGuaranteeObligations(memberNoTrimmed) : Promise.resolve([]),
+  ]);
 
   const normalizedContracts = contracts.map((contract) => {
     const loanType = (contract.loan_type_id ? activeTypeMap.get(contract.loan_type_id) : undefined) ?? fallbackLoanType;
@@ -262,12 +337,25 @@ async function getPaymentWorkspace(memberNo: string, mode: LoanPaymentMode, paid
     };
   });
 
+  const settlementGuard = mode === 'settlement'
+    ? buildSettlementGuard(normalizedContracts.map((item) => ({
+        contract_no: item.contract_no,
+        due_installments_count: item.due_installments_count,
+      })), guaranteeObligations)
+    : {
+        blocked: false,
+        reasons: [],
+        due_interest_contract_nos: [],
+        guaranteed_contract_nos: [],
+      };
+
   return {
     member,
     contracts: normalizedContracts,
     selected_contract: normalizedContracts[0],
     working_calendar_year: config.working_calendar_year,
     working_dates: config.working_dates,
+    settlement_guard: settlementGuard,
   };
 }
 
@@ -326,9 +414,21 @@ async function savePayment(payload: Record<string, unknown>, currentUserId: stri
     throw new Error('รายการนี้ไม่มีทั้งเงินต้นและดอกเบี้ยที่ต้องบันทึก');
   }
 
+  if (paymentMode === 'settlement') {
+    const [guaranteeObligations, dueInterestContracts] = await Promise.all([
+      getGuaranteeObligations(memberNo),
+      getDueInterestContracts(memberNo, paidDate),
+    ]);
+    const settlementGuard = buildSettlementGuard(dueInterestContracts, guaranteeObligations);
+
+    if (settlementGuard.blocked) {
+      throw new Error(settlementGuard.reasons[0] ?? 'ยังไม่สามารถกลบหนี้ได้');
+    }
+  }
+
   const remainingBalance = roundMoney(outstandingAmount - principalPaid);
   const note = paymentMode === 'settlement'
-    ? `กลบหนี้สัญญา ${contract.contract_no}`
+    ? 'กลบหนี้'
     : interestInstallmentsPaid > 1
       ? `ชำระดอกเบี้ย ${interestInstallmentsPaid} งวด`
       : principalPaid > 0

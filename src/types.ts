@@ -197,6 +197,12 @@ export interface LoanPaymentWorkspaceData {
   selected_contract: LoanPaymentCandidate;
   working_calendar_year: number;
   working_dates: LoanWorkingDateEntry[];
+  settlement_guard: {
+    blocked: boolean;
+    reasons: string[];
+    due_interest_contract_nos: string[];
+    guaranteed_contract_nos: string[];
+  };
 }
 
 export interface LoanPaymentPreview {

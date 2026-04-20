@@ -1146,6 +1146,36 @@ textarea {
   border: 1px solid #dcebdc;
 }
 
+.loan-inline-chip-danger {
+  background: #fff0f1;
+  border-color: #f1b6be;
+  color: #b42338;
+}
+
+.loan-settlement-alert {
+  margin-top: 18px;
+  border-radius: 16px;
+  padding: 14px 16px;
+  border: 1px solid #dcebdc;
+}
+
+.loan-settlement-alert strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.loan-settlement-alert-ready {
+  background: #f2fff4;
+  border-color: #b7dec0;
+  color: #1f5137;
+}
+
+.loan-settlement-alert-blocked {
+  background: #fff2f2;
+  border-color: #efc1c1;
+  color: #9f1d1d;
+}
+
 .loan-contract-primary {
   border-color: #95d5b2;
   background: #f7fff8;
@@ -1156,6 +1186,11 @@ textarea {
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 8px;
+}
+
+.loan-contract-warning {
+  color: #b42338;
+  font-weight: 700;
 }
 
 .loan-settings-topbar {
@@ -1306,6 +1341,15 @@ textarea {
 
 .passbook-table td:last-child {
   min-width: 260px;
+}
+
+.passbook-note-danger {
+  color: #b42338 !important;
+  font-weight: 700;
+}
+
+.loan-blocking-reasons {
+  margin: 16px 0;
 }
 
 .profile-dashboard-page {

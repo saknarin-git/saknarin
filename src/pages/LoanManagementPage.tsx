@@ -78,7 +78,7 @@ function buildDraftLoanTypeName(existingLoanTypes: LoanTypeRecord[]) {
 
 function buildPaymentNote(paymentMode: LoanPaymentMode, principalPaid: number, interestInstallmentsPaid: number, contractNo: string) {
   if (paymentMode === 'settlement') {
-    return `กลบหนี้สัญญา ${contractNo}`;
+    return 'กลบหนี้';
   }
 
   if (interestInstallmentsPaid > 1) {
@@ -161,6 +161,7 @@ export function LoanManagementPage() {
   const [showOverdueModal, setShowOverdueModal] = useState(false);
   const [preview, setPreview] = useState<LoanPaymentPreview | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [blockingAlert, setBlockingAlert] = useState<{ title: string; messages: string[] } | null>(null);
 
   useEffect(() => {
     if (!session) {
@@ -172,10 +173,10 @@ export function LoanManagementPage() {
   }, [session]);
 
   useEffect(() => {
-    if (activeSection === 'payment' && !showOverdueModal && !showPreviewModal && !paymentWorkspace) {
+    if (activeSection === 'payment' && !showOverdueModal && !showPreviewModal && !blockingAlert && !paymentWorkspace) {
       memberInputRef.current?.focus();
     }
-  }, [activeSection, paymentWorkspace, showOverdueModal, showPreviewModal]);
+  }, [activeSection, blockingAlert, paymentWorkspace, showOverdueModal, showPreviewModal]);
 
   useEffect(() => {
     if (showOverdueModal) {
@@ -340,6 +341,8 @@ export function LoanManagementPage() {
     setPaymentError('');
     setPaymentMessage('');
     setShowPreviewModal(false);
+    setShowOverdueModal(false);
+    setBlockingAlert(null);
     setPreview(null);
 
     try {
@@ -349,9 +352,29 @@ export function LoanManagementPage() {
       setWorkingDates(response.data.working_dates);
       setMemberLookup(nextMemberNo);
       const nextPrincipalValue = nextMode === 'settlement'
-        ? String(response.data.selected_contract.outstanding_amount)
+        ? String(response.data.selected_contract.suggested_principal_amount)
         : '';
       setPrincipalPaidInput(nextPrincipalValue);
+
+      if (nextMode === 'settlement') {
+        setInterestInstallmentsInput('0');
+        setInterestInstallmentsPaid(0);
+
+        if (response.data.settlement_guard.blocked) {
+          setPaymentError(response.data.settlement_guard.reasons[0] ?? 'ยังไม่สามารถกลบหนี้ได้');
+          setBlockingAlert({
+            title: 'ยังไม่สามารถกลบหนี้ได้',
+            messages: response.data.settlement_guard.reasons,
+          });
+          return;
+        }
+
+        requestAnimationFrame(() => {
+          principalInputRef.current?.focus();
+          principalInputRef.current?.select();
+        });
+        return;
+      }
 
       if (response.data.selected_contract.overdue_interest_installments > 0) {
         setInterestInstallmentsInput(String(response.data.selected_contract.due_installments_count));
@@ -379,6 +402,7 @@ export function LoanManagementPage() {
     setPaymentWorkspace(null);
     setShowPreviewModal(false);
     setShowOverdueModal(false);
+    setBlockingAlert(null);
     setPreview(null);
     setPrincipalPaidInput('');
     setInterestInstallmentsPaid(1);
@@ -422,6 +446,15 @@ export function LoanManagementPage() {
       return;
     }
 
+    if (paymentMode === 'settlement' && paymentWorkspace?.settlement_guard.blocked) {
+      setPaymentError(paymentWorkspace.settlement_guard.reasons[0] ?? 'ยังไม่สามารถกลบหนี้ได้');
+      setBlockingAlert({
+        title: 'ยังไม่สามารถกลบหนี้ได้',
+        messages: paymentWorkspace.settlement_guard.reasons,
+      });
+      return;
+    }
+
     try {
       const parsedPrincipal = paymentMode === 'settlement' && principalPaidInput.trim() === ''
         ? selectedPaymentContract.outstanding_amount
@@ -460,6 +493,15 @@ export function LoanManagementPage() {
 
   async function handleSavePayment() {
     if (!preview) {
+      return;
+    }
+
+    if (preview.payment_mode === 'settlement' && paymentWorkspace?.settlement_guard.blocked) {
+      setPaymentError(paymentWorkspace.settlement_guard.reasons[0] ?? 'ยังไม่สามารถกลบหนี้ได้');
+      setBlockingAlert({
+        title: 'ยังไม่สามารถกลบหนี้ได้',
+        messages: paymentWorkspace.settlement_guard.reasons,
+      });
       return;
     }
 
@@ -606,6 +648,9 @@ export function LoanManagementPage() {
                   setPaymentWorkspace(null);
                   setPaymentError('');
                   setPaymentMessage('');
+                  setBlockingAlert(null);
+                  setShowOverdueModal(false);
+                  setShowPreviewModal(false);
                   setPrincipalPaidInput('');
                   setPreview(null);
                   requestAnimationFrame(() => memberInputRef.current?.focus());
@@ -639,12 +684,23 @@ export function LoanManagementPage() {
               <div className="loan-payment-summary-card">
                 <span>ยอดหนี้คงเหลือ</span>
                 <strong>{formatCurrency(selectedPaymentContract.outstanding_amount)}</strong>
-                <div className="muted">ห้ามกรอกชำระต้นเกินยอดนี้</div>
+                <div className="muted">{paymentMode === 'settlement' ? 'โหมดกลบหนี้จะใช้ยอดนี้เป็นชำระต้นอัตโนมัติ' : 'ห้ามกรอกชำระต้นเกินยอดนี้'}</div>
               </div>
               <div className="loan-payment-summary-card">
                 <span>งวดดอกที่ถึงกำหนด</span>
                 <strong>{selectedPaymentContract.due_installments_count} งวด</strong>
                 <div className="muted">ค้างจากเดือนก่อน {selectedPaymentContract.overdue_interest_installments} งวด</div>
+              </div>
+            </div>
+          )}
+
+          {paymentMode === 'settlement' && paymentWorkspace && (
+            <div className={`loan-settlement-alert ${paymentWorkspace.settlement_guard.blocked ? 'loan-settlement-alert-blocked' : 'loan-settlement-alert-ready'}`}>
+              <strong>{paymentWorkspace.settlement_guard.blocked ? 'สถานะกลบหนี้: ยังทำรายการไม่ได้' : 'สถานะกลบหนี้: พร้อมทำรายการ'}</strong>
+              <div>
+                {paymentWorkspace.settlement_guard.blocked
+                  ? paymentWorkspace.settlement_guard.reasons.join(' ')
+                  : 'สมาชิกไม่มีดอกเบี้ยที่ถึงกำหนดและไม่มีภาระค้ำประกันเงินกู้ให้ผู้อื่น สามารถเปิดสมุดคู่ฝากเพื่อยืนยันรายการได้'}
               </div>
             </div>
           )}
@@ -657,6 +713,7 @@ export function LoanManagementPage() {
                   ref={principalInputRef}
                   value={principalPaidInput}
                   onChange={(event) => setPrincipalPaidInput(event.target.value)}
+                  readOnly={paymentMode === 'settlement'}
                   placeholder={paymentMode === 'settlement' ? 'ถ้าเว้นว่างจะใช้ยอดหนี้คงเหลือทั้งหมด' : 'ถ้าเว้นว่างจะถือว่าชำระเฉพาะดอกเบี้ย'}
                   inputMode="decimal"
                   autoComplete="off"
@@ -666,6 +723,7 @@ export function LoanManagementPage() {
                 <div className="loan-inline-chip">ดอกเบี้ยที่ต้องชำระ {formatCurrency(selectedPaymentContract.current_interest_due * interestInstallmentsPaid)} บาท</div>
                 <div className="loan-inline-chip">เลือกชำระดอก {interestInstallmentsPaid} งวด</div>
                 <div className="loan-inline-chip">วันทำการถัดไป {formatWorkingDate(selectedPaymentContract.next_working_date)}</div>
+                {paymentMode === 'settlement' && <div className="loan-inline-chip loan-inline-chip-danger">หมายเหตุที่จะบันทึก: กลบหนี้</div>}
               </div>
               <div className="actions compact-actions">
                 <button type="submit" className="btn btn-primary">เปิดสมุดคู่ฝาก</button>
@@ -694,6 +752,7 @@ export function LoanManagementPage() {
                     <div>ค้างจากเดือนก่อน {contract.overdue_interest_installments} งวด</div>
                     <div>ถึงกำหนดทั้งหมด {contract.due_installments_count} งวด</div>
                     <div>ดอกเบี้ย 1 งวด {formatCurrency(contract.current_interest_due)} บาท</div>
+                    {paymentMode === 'settlement' && contract.due_installments_count > 0 && <div className="loan-contract-warning">ยังมีดอกเบี้ยที่ต้องชำระก่อนกลบหนี้</div>}
                   </div>
                 </div>
               ))}
@@ -918,6 +977,31 @@ export function LoanManagementPage() {
         </div>
       )}
 
+      {blockingAlert && (
+        <div className="modal-overlay" role="presentation">
+          <div className="modal-card loan-modal-card">
+            <h3 className="section-title">{blockingAlert.title}</h3>
+            <div className="list loan-blocking-reasons">
+              {blockingAlert.messages.map((item) => (
+                <div key={item} className="alert-error">{item}</div>
+              ))}
+            </div>
+            <div className="actions">
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => {
+                  setBlockingAlert(null);
+                  requestAnimationFrame(() => memberInputRef.current?.focus());
+                }}
+              >
+                รับทราบ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showPreviewModal && preview && (
         <div className="modal-overlay" role="presentation">
           <div className="modal-card passbook-modal-card">
@@ -944,7 +1028,7 @@ export function LoanManagementPage() {
                     <td>{formatCurrency(preview.principal_paid)}</td>
                     <td>{formatCurrency(preview.interest_paid)}</td>
                     <td>{formatCurrency(preview.remaining_balance)}</td>
-                    <td>{preview.note}</td>
+                    <td className={preview.payment_mode === 'settlement' ? 'passbook-note-danger' : ''}>{preview.note}</td>
                   </tr>
                 </tbody>
               </table>
