@@ -35,6 +35,16 @@ interface LoanPaymentImportRow {
   created_at: string;
 }
 
+interface ExistingLoanPaymentMatchRow {
+  id: string;
+  external_reference: string | null;
+  contract_no: string;
+  member_no: string;
+  paid_date: string;
+  principal_paid: number | null;
+  interest_paid: number | null;
+}
+
 const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'ชื่อ-นามสกุล', 'ชื่อ นามสกุล', 'ชื่อผู้กู้', 'ชื่อผู้กู้สกุล', 'ชื่อผู้กู้-สกุล', 'ชื่อผู้กู้-นามสกุล', 'ชื่อผู้กู้ นามสกุล', 'ชื่อผู้กู้/สกุล', 'ชื่อ-สกุลผู้กู้', 'ชื่อสมาชิก', 'fullname', 'full_name', 'name'];
 const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด็กชาย', 'นาย', 'นาง'];
 const TEMPORARY_GUARANTOR_STATUS = 'ผู้ค้ำชั่วคราว';
@@ -187,6 +197,26 @@ function parseDecimal(value: string) {
     throw new Error(`ตัวเลขไม่ถูกต้อง: ${value}`);
   }
   return number;
+}
+
+function formatMoneyKey(value: number | null | undefined) {
+  return Number(value ?? 0).toFixed(2);
+}
+
+function buildPaymentCompositeKey(input: {
+  contract_no: string;
+  member_no: string;
+  paid_date: string;
+  principal_paid: number | null | undefined;
+  interest_paid: number | null | undefined;
+}) {
+  return [
+    input.contract_no.trim(),
+    input.member_no.trim(),
+    input.paid_date.trim(),
+    formatMoneyKey(input.principal_paid),
+    formatMoneyKey(input.interest_paid),
+  ].join('|');
 }
 
 function parseDate(value: string) {
@@ -393,14 +423,21 @@ async function importLoanTransactions(csvText: string) {
 
   const contractNos = [...new Set(payload.map((item) => item.contract_no))];
   const memberNos = [...new Set(payload.map((item) => item.member_no))];
-  const [{ data: contracts, error: contractsError }, { data: members, error: membersError }, { data: existing, error: existingError }] = await Promise.all([
+  const paidDates = [...new Set(payload.map((item) => item.paid_date))];
+  const [{ data: contracts, error: contractsError }, { data: members, error: membersError }, { data: existing, error: existingError }, { data: existingCandidates, error: existingCandidatesError }] = await Promise.all([
     adminClient.from('loan_contracts').select('contract_no, member_no').in('contract_no', contractNos),
     adminClient.from('members').select('member_no').in('member_no', memberNos),
     adminClient.from('loan_payments').select('external_reference').in('external_reference', payload.map((item) => item.external_reference)),
+    adminClient
+      .from('loan_payments')
+      .select('id, external_reference, contract_no, member_no, paid_date, principal_paid, interest_paid')
+      .in('contract_no', contractNos)
+      .in('member_no', memberNos)
+      .in('paid_date', paidDates),
   ]);
 
-  if (contractsError || membersError || existingError) {
-    throw contractsError ?? membersError ?? existingError;
+  if (contractsError || membersError || existingError || existingCandidatesError) {
+    throw contractsError ?? membersError ?? existingError ?? existingCandidatesError;
   }
 
   const contractMap = new Map((contracts ?? []).map((item) => [String(item.contract_no), String(item.member_no)]));
@@ -422,11 +459,76 @@ async function importLoanTransactions(csvText: string) {
   }
 
   const existingSet = new Set((existing ?? []).map((item) => String(item.external_reference)));
-  const inserted = payload.filter((item) => !existingSet.has(item.external_reference)).length;
-  const updated = payload.length - inserted;
+  const compositeKeyCount = new Map<string, number>();
+  const compositeCandidateMap = new Map<string, ExistingLoanPaymentMatchRow>();
 
-  const { error: upsertError } = await adminClient.from('loan_payments').upsert(payload, { onConflict: 'external_reference' });
-  if (upsertError) throw upsertError;
+  for (const item of (existingCandidates ?? []) as ExistingLoanPaymentMatchRow[]) {
+    const compositeKey = buildPaymentCompositeKey({
+      contract_no: item.contract_no,
+      member_no: item.member_no,
+      paid_date: item.paid_date,
+      principal_paid: Number(item.principal_paid ?? 0),
+      interest_paid: Number(item.interest_paid ?? 0),
+    });
+    compositeKeyCount.set(compositeKey, (compositeKeyCount.get(compositeKey) ?? 0) + 1);
+    if (!compositeCandidateMap.has(compositeKey)) {
+      compositeCandidateMap.set(compositeKey, item);
+    }
+  }
+
+  const recordsToUpsert: LoanPaymentImportRow[] = [];
+  const recordsToMergeById: Array<{ id: string; row: LoanPaymentImportRow }> = [];
+
+  for (const item of payload) {
+    if (existingSet.has(item.external_reference)) {
+      recordsToUpsert.push(item);
+      continue;
+    }
+
+    const compositeKey = buildPaymentCompositeKey(item);
+    if ((compositeKeyCount.get(compositeKey) ?? 0) === 1) {
+      const matchedRecord = compositeCandidateMap.get(compositeKey);
+      if (matchedRecord) {
+        recordsToMergeById.push({ id: matchedRecord.id, row: item });
+        continue;
+      }
+    }
+
+    recordsToUpsert.push(item);
+  }
+
+  for (const entry of recordsToMergeById) {
+    const { error: mergeError } = await adminClient
+      .from('loan_payments')
+      .update({
+        contract_no: entry.row.contract_no,
+        member_no: entry.row.member_no,
+        payment_mode: entry.row.payment_mode,
+        paid_date: entry.row.paid_date,
+        principal_paid: entry.row.principal_paid,
+        interest_paid: entry.row.interest_paid,
+        interest_installments_paid: entry.row.interest_installments_paid,
+        remaining_balance: entry.row.remaining_balance,
+        note: entry.row.note,
+        created_by: entry.row.created_by,
+        operator_name: entry.row.operator_name,
+        member_name: entry.row.member_name,
+        transaction_status: entry.row.transaction_status,
+        overdue_interest_before: entry.row.overdue_interest_before,
+        overdue_interest_after: entry.row.overdue_interest_after,
+      })
+      .eq('id', entry.id);
+
+    if (mergeError) throw mergeError;
+  }
+
+  if (recordsToUpsert.length > 0) {
+    const { error: upsertError } = await adminClient.from('loan_payments').upsert(recordsToUpsert, { onConflict: 'external_reference' });
+    if (upsertError) throw upsertError;
+  }
+
+  const inserted = recordsToUpsert.filter((item) => !existingSet.has(item.external_reference)).length;
+  const updated = payload.length - inserted;
 
   await syncLoanBalancesFromPayments(contractNos);
 
