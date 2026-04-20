@@ -15,7 +15,7 @@ interface LoanOverviewRow {
   status: string | null;
 }
 
-const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'fullname', 'full_name', 'name'];
+const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'ชื่อผู้กู้', 'ชื่อผู้กู้สกุล', 'ชื่อผู้กู้-สกุล', 'ชื่อสมาชิก', 'fullname', 'full_name', 'name'];
 const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด็กชาย', 'นาย', 'นาง'];
 const TEMPORARY_GUARANTOR_STATUS = 'ผู้ค้ำชั่วคราว';
 const NORMAL_MEMBER_STATUS = 'ปกติ';
@@ -119,7 +119,7 @@ function splitPersonName(fullName: string, currentTitle: string) {
 function resolveNameParts(row: string[], title: string, firstNameIndex: number, lastNameIndex: number, fullNameIndex: number) {
   const directFirstName = getCell(row, firstNameIndex);
   const directLastName = getCell(row, lastNameIndex);
-  const fullName = getCell(row, fullNameIndex);
+  const fullName = getCell(row, fullNameIndex) || (!title.trim() && directFirstName && !directLastName ? directFirstName : '');
   const splitName = fullName ? splitPersonName(fullName, title) : { title, firstName: '', lastName: '' };
 
   if (directFirstName && directLastName) {
@@ -335,8 +335,8 @@ async function importLoanContracts(csvText: string) {
   const guarantor1Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'guarantor_1', 'guarantor1']);
   const guarantor2Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'guarantor_2', 'guarantor2']);
 
-  if ([memberNoIndex, contractNoIndex, loanAmountIndex, outstandingAmountIndex, statusIndex, contractDateIndex, guarantor1Index].some((index) => index < 0) || (titleIndex < 0 && fullNameIndex < 0) || ((firstNameIndex < 0 || lastNameIndex < 0) && fullNameIndex < 0)) {
-    throw new Error('ไฟล์สัญญาเงินกู้ต้องมีคอลัมน์ เลขที่สมาชิก, เลขที่สัญญา, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1 และอย่างน้อย คำนำหน้า+ชื่อ+สกุล แบบแยกคอลัมน์ หรือรวมอยู่ในคอลัมน์ ชื่อ-สกุล');
+  if ([memberNoIndex, contractNoIndex, loanAmountIndex, outstandingAmountIndex, statusIndex, contractDateIndex, guarantor1Index].some((index) => index < 0) || (firstNameIndex < 0 && fullNameIndex < 0)) {
+    throw new Error('ไฟล์สัญญาเงินกู้ต้องมีคอลัมน์ เลขที่สมาชิก, เลขที่สัญญา, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1 และอย่างน้อยคอลัมน์ชื่อผู้กู้ 1 ช่อง เช่น ชื่อ, ชื่อผู้กู้ หรือ ชื่อ-สกุล');
   }
 
   const payload = rows.map((row, rowIndex) => {
@@ -346,16 +346,16 @@ async function importLoanContracts(csvText: string) {
     const { title: resolvedTitle, firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
     const guarantor1 = getCell(row, guarantor1Index);
 
-    if (!memberNo || !contractNo || !resolvedTitle || !firstName || !lastName || !guarantor1) {
+    if (!memberNo || !contractNo || (!firstName && !lastName) || !guarantor1) {
       throw new Error(`ข้อมูลสัญญาเงินกู้ไม่ครบถ้วนที่แถว ${rowIndex + 2}`);
     }
 
     return {
       member_no: memberNo,
       contract_no: contractNo,
-      title: resolvedTitle,
-      first_name: firstName,
-      last_name: lastName,
+      title: resolvedTitle || '',
+      first_name: firstName || lastName,
+      last_name: firstName ? lastName : '',
       loan_amount: parseDecimal(getCell(row, loanAmountIndex)),
       outstanding_amount: parseDecimal(getCell(row, outstandingAmountIndex)),
       status: getCell(row, statusIndex),

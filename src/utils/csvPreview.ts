@@ -29,7 +29,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
   'ผู้ค้ำประกันคนที่ 2': ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'guarantor_2', 'guarantor2'],
 };
 
-const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'fullname', 'full_name', 'name'];
+const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'ชื่อผู้กู้', 'ชื่อผู้กู้สกุล', 'ชื่อผู้กู้-สกุล', 'ชื่อสมาชิก', 'fullname', 'full_name', 'name'];
 const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด็กชาย', 'นาย', 'นาง'];
 
 function normalizeHeader(value: string) {
@@ -144,7 +144,9 @@ function resolveNameFields(headers: string[], row: string[]) {
   const title = titleHeader ? String(row[headers.indexOf(titleHeader)] ?? '').trim() : '';
   const directFirstName = firstNameHeader ? String(row[headers.indexOf(firstNameHeader)] ?? '').trim() : '';
   const directLastName = lastNameHeader ? String(row[headers.indexOf(lastNameHeader)] ?? '').trim() : '';
-  const fullName = fullNameHeader ? String(row[headers.indexOf(fullNameHeader)] ?? '').trim() : '';
+  const fullName = fullNameHeader
+    ? String(row[headers.indexOf(fullNameHeader)] ?? '').trim()
+    : (!title && directFirstName && !directLastName ? directFirstName : '');
 
   const splitName = fullName ? splitPersonName(fullName, title) : { title, firstName: '', lastName: '' };
 
@@ -191,11 +193,17 @@ function toMappedRow(headers: string[], requiredHeaders: string[], row: string[]
   return mappedRow;
 }
 
-function getMissingHeaders(headers: string[], requiredHeaders: string[]) {
+function getMissingHeaders(importType: CsvImportType, headers: string[], requiredHeaders: string[]) {
   const fullNameHeader = findMatchingAlias(headers, FULL_NAME_ALIASES);
+  const firstNameHeader = findMatchingHeader(headers, 'ชื่อ');
+  const hasCombinedLoanNameSource = importType === 'loan-contracts' && Boolean(fullNameHeader || firstNameHeader);
 
   return requiredHeaders.filter((header) => {
     if ((header === 'คำนำหน้าชื่อ' || header === 'ชื่อ' || header === 'สกุล') && fullNameHeader) {
+      return false;
+    }
+
+    if ((header === 'คำนำหน้าชื่อ' || header === 'ชื่อ' || header === 'สกุล') && hasCombinedLoanNameSource) {
       return false;
     }
 
@@ -245,9 +253,7 @@ function validateLoanRow(row: Record<string, string>) {
 
   if (!row['เลขที่สมาชิก']) messages.push('เลขที่สมาชิกว่าง');
   if (!row['เลขที่สัญญา']) messages.push('เลขที่สัญญาว่าง');
-  if (!row['คำนำหน้าชื่อ']) messages.push('คำนำหน้าชื่อว่าง');
-  if (!row['ชื่อ']) messages.push('ชื่อว่าง');
-  if (!row['สกุล']) messages.push('สกุลว่าง');
+  if (!row['ชื่อ'] && !row['สกุล']) messages.push('ชื่อผู้กู้ว่าง');
   if (!row['ผู้ค้ำประกันคนที่ 1']) messages.push('ผู้ค้ำประกันคนที่ 1 ว่าง');
 
   if (!isValidDecimal(row['ยอดเงินกู้'])) messages.push('ยอดเงินกู้ไม่ใช่ตัวเลข');
@@ -285,14 +291,14 @@ export function buildCsvPreview(csvText: string, importType: CsvImportType, file
   const requiredHeaders = getRequiredHeaders(importType);
   const matchedHeaders = requiredHeaders
     .map((header) => {
-      if (header === 'ชื่อ' || header === 'สกุล') {
+      if (header === 'คำนำหน้าชื่อ' || header === 'ชื่อ' || header === 'สกุล') {
         return findMatchingHeader(headers, header) ?? findMatchingAlias(headers, FULL_NAME_ALIASES) ?? undefined;
       }
 
       return findMatchingHeader(headers, header);
     })
     .filter((header): header is string => Boolean(header));
-  const missingHeaders = getMissingHeaders(headers, requiredHeaders);
+  const missingHeaders = getMissingHeaders(importType, headers, requiredHeaders);
   const issues = missingHeaders.length === 0 ? validateRows(importType, headers, requiredHeaders, rows) : [];
 
   const sampleRows = rows.slice(0, 5).map((row) => toMappedRow(headers, requiredHeaders, row));
