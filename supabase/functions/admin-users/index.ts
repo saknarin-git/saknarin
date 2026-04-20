@@ -344,7 +344,7 @@ async function importMembers(csvText: string) {
 
 async function importLoanContracts(csvText: string) {
   const { headers, rows } = parseCsv(csvText);
-  const memberNoIndex = findHeaderIndex(headers, ['เลขที่สมาชิก', 'member_no', 'memberno']);
+  const memberNoIndex = findHeaderIndex(headers, ['เลขที่สมาชิก', 'รหัสสมาชิก', 'member_no', 'memberno']);
   const contractNoIndex = findHeaderIndex(headers, ['เลขที่สัญญา', 'contract_no', 'contractno']);
   const titleIndex = findHeaderIndex(headers, ['คำนำหน้าชื่อ', 'คำหนำหน้าชื่อ', 'คำนำหน้า', 'title']);
   const firstNameIndex = findHeaderIndex(headers, ['ชื่อ', 'first_name', 'firstname']);
