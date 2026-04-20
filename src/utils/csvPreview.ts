@@ -29,6 +29,9 @@ const HEADER_ALIASES: Record<string, string[]> = {
   'ผู้ค้ำประกันคนที่ 2': ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'guarantor_2', 'guarantor2'],
 };
 
+const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'fullname', 'full_name', 'name'];
+const KNOWN_TITLES = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
+
 function normalizeHeader(value: string) {
   return value.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[\s_\-()/]+/g, '');
 }
@@ -102,16 +105,93 @@ function findMatchingHeader(headers: string[], expectedHeader: string) {
   return headers.find((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
+function findMatchingAlias(headers: string[], aliases: string[]) {
+  const normalizedAliases = aliases.map((value) => normalizeHeader(value));
+  return headers.find((header) => normalizedAliases.includes(normalizeHeader(header)));
+}
+
+function splitFullName(fullName: string, title: string) {
+  const normalized = fullName.trim().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return { firstName: '', lastName: '' };
+  }
+
+  let working = normalized;
+  const titleToStrip = title.trim() || KNOWN_TITLES.find((item) => normalized.startsWith(`${item} `)) || '';
+  if (titleToStrip && working.startsWith(titleToStrip)) {
+    working = working.slice(titleToStrip.length).trim();
+  }
+
+  const parts = working.split(' ').filter(Boolean);
+  if (parts.length <= 1) {
+    return { firstName: parts[0] ?? '', lastName: '' };
+  }
+
+  return {
+    firstName: parts.slice(0, -1).join(' '),
+    lastName: parts[parts.length - 1],
+  };
+}
+
+function resolveNameFields(headers: string[], row: string[]) {
+  const titleHeader = findMatchingHeader(headers, 'คำนำหน้าชื่อ');
+  const firstNameHeader = findMatchingHeader(headers, 'ชื่อ');
+  const lastNameHeader = findMatchingHeader(headers, 'สกุล');
+  const fullNameHeader = findMatchingAlias(headers, FULL_NAME_ALIASES);
+
+  const title = titleHeader ? String(row[headers.indexOf(titleHeader)] ?? '').trim() : '';
+  const directFirstName = firstNameHeader ? String(row[headers.indexOf(firstNameHeader)] ?? '').trim() : '';
+  const directLastName = lastNameHeader ? String(row[headers.indexOf(lastNameHeader)] ?? '').trim() : '';
+
+  if (directFirstName && directLastName) {
+    return { firstName: directFirstName, lastName: directLastName };
+  }
+
+  const fullName = fullNameHeader ? String(row[headers.indexOf(fullNameHeader)] ?? '').trim() : '';
+  if (!fullName) {
+    return { firstName: directFirstName, lastName: directLastName };
+  }
+
+  const splitName = splitFullName(fullName, title);
+  return {
+    firstName: directFirstName || splitName.firstName,
+    lastName: directLastName || splitName.lastName,
+  };
+}
+
 function toMappedRow(headers: string[], requiredHeaders: string[], row: string[]) {
   const mappedRow: Record<string, string> = {};
+  const nameFields = resolveNameFields(headers, row);
 
   requiredHeaders.forEach((header) => {
+    if (header === 'ชื่อ') {
+      mappedRow[header] = nameFields.firstName;
+      return;
+    }
+
+    if (header === 'สกุล') {
+      mappedRow[header] = nameFields.lastName;
+      return;
+    }
+
     const actualHeader = findMatchingHeader(headers, header);
     const columnIndex = actualHeader ? headers.indexOf(actualHeader) : -1;
     mappedRow[header] = columnIndex >= 0 ? String(row[columnIndex] ?? '').trim() : '';
   });
 
   return mappedRow;
+}
+
+function getMissingHeaders(headers: string[], requiredHeaders: string[]) {
+  const fullNameHeader = findMatchingAlias(headers, FULL_NAME_ALIASES);
+
+  return requiredHeaders.filter((header) => {
+    if ((header === 'ชื่อ' || header === 'สกุล') && fullNameHeader) {
+      return false;
+    }
+
+    return !findMatchingHeader(headers, header);
+  });
 }
 
 function isValidDecimal(value: string) {
@@ -195,9 +275,15 @@ export function buildCsvPreview(csvText: string, importType: CsvImportType, file
   const { headers, rows } = parseCsv(csvText);
   const requiredHeaders = getRequiredHeaders(importType);
   const matchedHeaders = requiredHeaders
-    .map((header) => findMatchingHeader(headers, header))
+    .map((header) => {
+      if (header === 'ชื่อ' || header === 'สกุล') {
+        return findMatchingHeader(headers, header) ?? findMatchingAlias(headers, FULL_NAME_ALIASES) ?? undefined;
+      }
+
+      return findMatchingHeader(headers, header);
+    })
     .filter((header): header is string => Boolean(header));
-  const missingHeaders = requiredHeaders.filter((header) => !findMatchingHeader(headers, header));
+  const missingHeaders = getMissingHeaders(headers, requiredHeaders);
   const issues = missingHeaders.length === 0 ? validateRows(importType, headers, requiredHeaders, rows) : [];
 
   const sampleRows = rows.slice(0, 5).map((row) => toMappedRow(headers, requiredHeaders, row));

@@ -619,7 +619,7 @@ export function DevManagerPage() {
         <div className="grid-two">
         <section className="card">
           <h3>นำเข้าฐานข้อมูลสมาชิก</h3>
-          <div className="notice">คอลัมน์ที่รองรับ: เลขที่สมาชิก, คำนำหน้าชื่อ, ชื่อ, สกุล, สถานะ</div>
+          <div className="notice">คอลัมน์ที่รองรับ: เลขที่สมาชิก, คำนำหน้าชื่อ, ชื่อ, สกุล, สถานะ หรือใช้คอลัมน์ ชื่อ-สกุล แทน ชื่อ กับ สกุล ก็ได้</div>
           <div className="stats-row">
             <div className="stat-chip">สมาชิกในระบบปัจจุบัน: {importStats.members_count}</div>
           </div>
@@ -651,7 +651,7 @@ export function DevManagerPage() {
 
         <section className="card">
           <h3>นำเข้าสัญญาเงินกู้</h3>
-          <div className="notice">คอลัมน์ที่รองรับ: เลขที่สมาชิก, เลขที่สัญญา, คำนำหน้าชื่อ, ชื่อ, สกุล, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1, ผู้ค้ำประกันคนที่ 2</div>
+          <div className="notice">คอลัมน์ที่รองรับ: เลขที่สมาชิก, เลขที่สัญญา, คำนำหน้าชื่อ, ชื่อ, สกุล, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1, ผู้ค้ำประกันคนที่ 2 หรือใช้คอลัมน์ ชื่อ-สกุล แทน ชื่อ กับ สกุล ก็ได้</div>
           <div className="stats-row">
             <div className="stat-chip">สัญญาเงินกู้ในระบบปัจจุบัน: {importStats.loan_contracts_count}</div>
           </div>

@@ -15,6 +15,9 @@ interface LoanOverviewRow {
   status: string | null;
 }
 
+const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'fullname', 'full_name', 'name'];
+const KNOWN_TITLES = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
+
 function normalizeHeader(value: string) {
   return value.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[\s_\-()/]+/g, '');
 }
@@ -86,6 +89,49 @@ function getCell(row: string[], index: number) {
   return index >= 0 ? String(row[index] ?? '').trim() : '';
 }
 
+function splitFullName(fullName: string, title: string) {
+  const normalized = fullName.trim().replace(/\s+/g, ' ');
+  if (!normalized) {
+    return { firstName: '', lastName: '' };
+  }
+
+  let working = normalized;
+  const titleToStrip = title.trim() || KNOWN_TITLES.find((item) => normalized.startsWith(`${item} `)) || '';
+  if (titleToStrip && working.startsWith(titleToStrip)) {
+    working = working.slice(titleToStrip.length).trim();
+  }
+
+  const parts = working.split(' ').filter(Boolean);
+  if (parts.length <= 1) {
+    return { firstName: parts[0] ?? '', lastName: '' };
+  }
+
+  return {
+    firstName: parts.slice(0, -1).join(' '),
+    lastName: parts[parts.length - 1],
+  };
+}
+
+function resolveNameParts(row: string[], title: string, firstNameIndex: number, lastNameIndex: number, fullNameIndex: number) {
+  const directFirstName = getCell(row, firstNameIndex);
+  const directLastName = getCell(row, lastNameIndex);
+
+  if (directFirstName && directLastName) {
+    return { firstName: directFirstName, lastName: directLastName };
+  }
+
+  const fullName = getCell(row, fullNameIndex);
+  if (!fullName) {
+    return { firstName: directFirstName, lastName: directLastName };
+  }
+
+  const splitName = splitFullName(fullName, title);
+  return {
+    firstName: directFirstName || splitName.firstName,
+    lastName: directLastName || splitName.lastName,
+  };
+}
+
 function parseDecimal(value: string) {
   const normalized = value.replace(/,/g, '').trim();
   if (!normalized) return 0;
@@ -127,17 +173,17 @@ async function importMembers(csvText: string) {
   const titleIndex = findHeaderIndex(headers, ['คำนำหน้าชื่อ', 'คำนำหน้า', 'title']);
   const firstNameIndex = findHeaderIndex(headers, ['ชื่อ', 'first_name', 'firstname']);
   const lastNameIndex = findHeaderIndex(headers, ['สกุล', 'นามสกุล', 'last_name', 'lastname']);
+  const fullNameIndex = findHeaderIndex(headers, FULL_NAME_ALIASES);
   const statusIndex = findHeaderIndex(headers, ['สถานะ', 'status']);
 
-  if ([memberNoIndex, titleIndex, firstNameIndex, lastNameIndex, statusIndex].some((index) => index < 0)) {
-    throw new Error('ไฟล์ฐานข้อมูลสมาชิกต้องมีคอลัมน์ เลขที่สมาชิก, คำนำหน้าชื่อ, ชื่อ, สกุล, สถานะ');
+  if ([memberNoIndex, titleIndex, statusIndex].some((index) => index < 0) || ((firstNameIndex < 0 || lastNameIndex < 0) && fullNameIndex < 0)) {
+    throw new Error('ไฟล์ฐานข้อมูลสมาชิกต้องมีคอลัมน์ เลขที่สมาชิก, คำนำหน้าชื่อ, สถานะ และอย่างน้อย ชื่อ+สกุล หรือ ชื่อ-สกุล');
   }
 
   const payload = rows.map((row, rowIndex) => {
     const memberNo = getCell(row, memberNoIndex);
     const title = getCell(row, titleIndex);
-    const firstName = getCell(row, firstNameIndex);
-    const lastName = getCell(row, lastNameIndex);
+    const { firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
     const status = getCell(row, statusIndex);
 
     if (!memberNo || !title || !firstName || !lastName) {
@@ -180,6 +226,7 @@ async function importLoanContracts(csvText: string) {
   const titleIndex = findHeaderIndex(headers, ['คำนำหน้าชื่อ', 'คำหนำหน้าชื่อ', 'คำนำหน้า', 'title']);
   const firstNameIndex = findHeaderIndex(headers, ['ชื่อ', 'first_name', 'firstname']);
   const lastNameIndex = findHeaderIndex(headers, ['สกุล', 'นามสกุล', 'last_name', 'lastname']);
+  const fullNameIndex = findHeaderIndex(headers, FULL_NAME_ALIASES);
   const loanAmountIndex = findHeaderIndex(headers, ['ยอดเงินกู้', 'loan_amount', 'loanamount']);
   const outstandingAmountIndex = findHeaderIndex(headers, ['ยอดคงค้าง', 'outstanding_amount', 'outstandingamount']);
   const statusIndex = findHeaderIndex(headers, ['สถานะ', 'status']);
@@ -187,16 +234,15 @@ async function importLoanContracts(csvText: string) {
   const guarantor1Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'guarantor_1', 'guarantor1']);
   const guarantor2Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'guarantor_2', 'guarantor2']);
 
-  if ([memberNoIndex, contractNoIndex, titleIndex, firstNameIndex, lastNameIndex, loanAmountIndex, outstandingAmountIndex, statusIndex, contractDateIndex, guarantor1Index].some((index) => index < 0)) {
-    throw new Error('ไฟล์สัญญาเงินกู้ต้องมีคอลัมน์ เลขที่สมาชิก, เลขที่สัญญา, คำนำหน้าชื่อ, ชื่อ, สกุล, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1');
+  if ([memberNoIndex, contractNoIndex, titleIndex, loanAmountIndex, outstandingAmountIndex, statusIndex, contractDateIndex, guarantor1Index].some((index) => index < 0) || ((firstNameIndex < 0 || lastNameIndex < 0) && fullNameIndex < 0)) {
+    throw new Error('ไฟล์สัญญาเงินกู้ต้องมีคอลัมน์ เลขที่สมาชิก, เลขที่สัญญา, คำนำหน้าชื่อ, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1 และอย่างน้อย ชื่อ+สกุล หรือ ชื่อ-สกุล');
   }
 
   const payload = rows.map((row, rowIndex) => {
     const memberNo = getCell(row, memberNoIndex);
     const contractNo = getCell(row, contractNoIndex);
     const title = getCell(row, titleIndex);
-    const firstName = getCell(row, firstNameIndex);
-    const lastName = getCell(row, lastNameIndex);
+    const { firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
     const guarantor1 = getCell(row, guarantor1Index);
 
     if (!memberNo || !contractNo || !title || !firstName || !lastName || !guarantor1) {
