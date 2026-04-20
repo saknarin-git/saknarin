@@ -89,24 +89,26 @@ function getCell(row: string[], index: number) {
   return index >= 0 ? String(row[index] ?? '').trim() : '';
 }
 
-function splitFullName(fullName: string, title: string) {
+function splitPersonName(fullName: string, currentTitle: string) {
   const normalized = fullName.trim().replace(/\s+/g, ' ');
   if (!normalized) {
-    return { firstName: '', lastName: '' };
+    return { title: currentTitle.trim(), firstName: '', lastName: '' };
   }
 
   let working = normalized;
-  const titleToStrip = title.trim() || KNOWN_TITLES.find((item) => normalized.startsWith(`${item} `)) || '';
+  const inferredTitle = KNOWN_TITLES.find((item) => normalized === item || normalized.startsWith(`${item} `)) || '';
+  const titleToStrip = currentTitle.trim() || inferredTitle;
   if (titleToStrip && working.startsWith(titleToStrip)) {
     working = working.slice(titleToStrip.length).trim();
   }
 
   const parts = working.split(' ').filter(Boolean);
   if (parts.length <= 1) {
-    return { firstName: parts[0] ?? '', lastName: '' };
+    return { title: titleToStrip, firstName: parts[0] ?? '', lastName: '' };
   }
 
   return {
+    title: titleToStrip,
     firstName: parts.slice(0, -1).join(' '),
     lastName: parts[parts.length - 1],
   };
@@ -115,18 +117,19 @@ function splitFullName(fullName: string, title: string) {
 function resolveNameParts(row: string[], title: string, firstNameIndex: number, lastNameIndex: number, fullNameIndex: number) {
   const directFirstName = getCell(row, firstNameIndex);
   const directLastName = getCell(row, lastNameIndex);
+  const fullName = getCell(row, fullNameIndex);
+  const splitName = fullName ? splitPersonName(fullName, title) : { title, firstName: '', lastName: '' };
 
   if (directFirstName && directLastName) {
-    return { firstName: directFirstName, lastName: directLastName };
+    return { title: title || splitName.title, firstName: directFirstName, lastName: directLastName };
   }
 
-  const fullName = getCell(row, fullNameIndex);
   if (!fullName) {
-    return { firstName: directFirstName, lastName: directLastName };
+    return { title, firstName: directFirstName, lastName: directLastName };
   }
 
-  const splitName = splitFullName(fullName, title);
   return {
+    title: title || splitName.title,
     firstName: directFirstName || splitName.firstName,
     lastName: directLastName || splitName.lastName,
   };
@@ -176,23 +179,23 @@ async function importMembers(csvText: string) {
   const fullNameIndex = findHeaderIndex(headers, FULL_NAME_ALIASES);
   const statusIndex = findHeaderIndex(headers, ['สถานะ', 'status']);
 
-  if ([memberNoIndex, titleIndex, statusIndex].some((index) => index < 0) || ((firstNameIndex < 0 || lastNameIndex < 0) && fullNameIndex < 0)) {
-    throw new Error('ไฟล์ฐานข้อมูลสมาชิกต้องมีคอลัมน์ เลขที่สมาชิก, คำนำหน้าชื่อ, สถานะ และอย่างน้อย ชื่อ+สกุล หรือ ชื่อ-สกุล');
+  if ([memberNoIndex, statusIndex].some((index) => index < 0) || (titleIndex < 0 && fullNameIndex < 0) || ((firstNameIndex < 0 || lastNameIndex < 0) && fullNameIndex < 0)) {
+    throw new Error('ไฟล์ฐานข้อมูลสมาชิกต้องมีคอลัมน์ เลขที่สมาชิก, สถานะ และอย่างน้อย คำนำหน้า+ชื่อ+สกุล แบบแยกคอลัมน์ หรือรวมอยู่ในคอลัมน์ ชื่อ-สกุล');
   }
 
   const payload = rows.map((row, rowIndex) => {
     const memberNo = getCell(row, memberNoIndex);
     const title = getCell(row, titleIndex);
-    const { firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
+    const { title: resolvedTitle, firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
     const status = getCell(row, statusIndex);
 
-    if (!memberNo || !title || !firstName || !lastName) {
+    if (!memberNo || !resolvedTitle || !firstName || !lastName) {
       throw new Error(`ข้อมูลสมาชิกไม่ครบถ้วนที่แถว ${rowIndex + 2}`);
     }
 
     return {
       member_no: memberNo,
-      title,
+      title: resolvedTitle,
       first_name: firstName,
       last_name: lastName,
       legacy_status: status,
@@ -234,25 +237,25 @@ async function importLoanContracts(csvText: string) {
   const guarantor1Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่1', 'ผู้ค้ำประกันคนที่ 1', 'guarantor_1', 'guarantor1']);
   const guarantor2Index = findHeaderIndex(headers, ['ผู้ค้ำประกันคนที่2', 'ผู้ค้ำประกันคนที่ 2', 'guarantor_2', 'guarantor2']);
 
-  if ([memberNoIndex, contractNoIndex, titleIndex, loanAmountIndex, outstandingAmountIndex, statusIndex, contractDateIndex, guarantor1Index].some((index) => index < 0) || ((firstNameIndex < 0 || lastNameIndex < 0) && fullNameIndex < 0)) {
-    throw new Error('ไฟล์สัญญาเงินกู้ต้องมีคอลัมน์ เลขที่สมาชิก, เลขที่สัญญา, คำนำหน้าชื่อ, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1 และอย่างน้อย ชื่อ+สกุล หรือ ชื่อ-สกุล');
+  if ([memberNoIndex, contractNoIndex, loanAmountIndex, outstandingAmountIndex, statusIndex, contractDateIndex, guarantor1Index].some((index) => index < 0) || (titleIndex < 0 && fullNameIndex < 0) || ((firstNameIndex < 0 || lastNameIndex < 0) && fullNameIndex < 0)) {
+    throw new Error('ไฟล์สัญญาเงินกู้ต้องมีคอลัมน์ เลขที่สมาชิก, เลขที่สัญญา, ยอดเงินกู้, ยอดคงค้าง, สถานะ, วันที่สร้างสัญญา, ผู้ค้ำประกันคนที่ 1 และอย่างน้อย คำนำหน้า+ชื่อ+สกุล แบบแยกคอลัมน์ หรือรวมอยู่ในคอลัมน์ ชื่อ-สกุล');
   }
 
   const payload = rows.map((row, rowIndex) => {
     const memberNo = getCell(row, memberNoIndex);
     const contractNo = getCell(row, contractNoIndex);
     const title = getCell(row, titleIndex);
-    const { firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
+    const { title: resolvedTitle, firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
     const guarantor1 = getCell(row, guarantor1Index);
 
-    if (!memberNo || !contractNo || !title || !firstName || !lastName || !guarantor1) {
+    if (!memberNo || !contractNo || !resolvedTitle || !firstName || !lastName || !guarantor1) {
       throw new Error(`ข้อมูลสัญญาเงินกู้ไม่ครบถ้วนที่แถว ${rowIndex + 2}`);
     }
 
     return {
       member_no: memberNo,
       contract_no: contractNo,
-      title,
+      title: resolvedTitle,
       first_name: firstName,
       last_name: lastName,
       loan_amount: parseDecimal(getCell(row, loanAmountIndex)),

@@ -110,24 +110,26 @@ function findMatchingAlias(headers: string[], aliases: string[]) {
   return headers.find((header) => normalizedAliases.includes(normalizeHeader(header)));
 }
 
-function splitFullName(fullName: string, title: string) {
+function splitPersonName(fullName: string, currentTitle: string) {
   const normalized = fullName.trim().replace(/\s+/g, ' ');
   if (!normalized) {
-    return { firstName: '', lastName: '' };
+    return { title: currentTitle.trim(), firstName: '', lastName: '' };
   }
 
   let working = normalized;
-  const titleToStrip = title.trim() || KNOWN_TITLES.find((item) => normalized.startsWith(`${item} `)) || '';
+  const inferredTitle = KNOWN_TITLES.find((item) => normalized === item || normalized.startsWith(`${item} `)) || '';
+  const titleToStrip = currentTitle.trim() || inferredTitle;
   if (titleToStrip && working.startsWith(titleToStrip)) {
     working = working.slice(titleToStrip.length).trim();
   }
 
   const parts = working.split(' ').filter(Boolean);
   if (parts.length <= 1) {
-    return { firstName: parts[0] ?? '', lastName: '' };
+    return { title: titleToStrip, firstName: parts[0] ?? '', lastName: '' };
   }
 
   return {
+    title: titleToStrip,
     firstName: parts.slice(0, -1).join(' '),
     lastName: parts[parts.length - 1],
   };
@@ -142,18 +144,20 @@ function resolveNameFields(headers: string[], row: string[]) {
   const title = titleHeader ? String(row[headers.indexOf(titleHeader)] ?? '').trim() : '';
   const directFirstName = firstNameHeader ? String(row[headers.indexOf(firstNameHeader)] ?? '').trim() : '';
   const directLastName = lastNameHeader ? String(row[headers.indexOf(lastNameHeader)] ?? '').trim() : '';
+  const fullName = fullNameHeader ? String(row[headers.indexOf(fullNameHeader)] ?? '').trim() : '';
+
+  const splitName = fullName ? splitPersonName(fullName, title) : { title, firstName: '', lastName: '' };
 
   if (directFirstName && directLastName) {
-    return { firstName: directFirstName, lastName: directLastName };
+    return { title: title || splitName.title, firstName: directFirstName, lastName: directLastName };
   }
 
-  const fullName = fullNameHeader ? String(row[headers.indexOf(fullNameHeader)] ?? '').trim() : '';
   if (!fullName) {
-    return { firstName: directFirstName, lastName: directLastName };
+    return { title, firstName: directFirstName, lastName: directLastName };
   }
 
-  const splitName = splitFullName(fullName, title);
   return {
+    title: title || splitName.title,
     firstName: directFirstName || splitName.firstName,
     lastName: directLastName || splitName.lastName,
   };
@@ -164,6 +168,11 @@ function toMappedRow(headers: string[], requiredHeaders: string[], row: string[]
   const nameFields = resolveNameFields(headers, row);
 
   requiredHeaders.forEach((header) => {
+    if (header === 'คำนำหน้าชื่อ') {
+      mappedRow[header] = nameFields.title;
+      return;
+    }
+
     if (header === 'ชื่อ') {
       mappedRow[header] = nameFields.firstName;
       return;
@@ -186,7 +195,7 @@ function getMissingHeaders(headers: string[], requiredHeaders: string[]) {
   const fullNameHeader = findMatchingAlias(headers, FULL_NAME_ALIASES);
 
   return requiredHeaders.filter((header) => {
-    if ((header === 'ชื่อ' || header === 'สกุล') && fullNameHeader) {
+    if ((header === 'คำนำหน้าชื่อ' || header === 'ชื่อ' || header === 'สกุล') && fullNameHeader) {
       return false;
     }
 
