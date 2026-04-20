@@ -25,11 +25,8 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Supabase CLI
-        run: npm install --global supabase@latest
-
       - name: Sync Supabase secrets
-        run: supabase secrets set BOOTSTRAP_ADMIN_TOKEN="$BOOTSTRAP_ADMIN_TOKEN" --project-ref "$PROJECT_REF"
+        run: npx supabase@latest secrets set BOOTSTRAP_ADMIN_TOKEN="$BOOTSTRAP_ADMIN_TOKEN" --project-ref "$PROJECT_REF"
 
       - name: Push database migrations
         shell: bash
@@ -39,20 +36,20 @@ jobs:
             exit 0
           fi
 
-          supabase link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
-          supabase db push --include-all
+          npx supabase@latest link --project-ref "$PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          npx supabase@latest db push --include-all
 
       - name: Deploy public functions
         run: |
-          supabase functions deploy member-search --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy auth-register --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy auth-login --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy bootstrap-admin --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy member-search --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy auth-register --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy auth-login --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy bootstrap-admin --project-ref "$PROJECT_REF" --no-verify-jwt
 
       - name: Deploy protected functions
         run: |
-          supabase functions deploy user-profile --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy admin-users --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy admin-records --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy system-overview --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy loan-workspace --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy user-profile --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy admin-users --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy admin-records --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy system-overview --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx supabase@latest functions deploy loan-workspace --project-ref "$PROJECT_REF" --no-verify-jwt
