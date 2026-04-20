@@ -116,6 +116,20 @@ function splitPersonName(fullName: string, currentTitle: string) {
   };
 }
 
+function parseGuarantorValue(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const matched = trimmed.match(/^\(([^)]+)\)\s*(.*)$/);
+  if (!matched) {
+    return trimmed;
+  }
+
+  return matched[1].trim();
+}
+
 function resolveNameParts(row: string[], title: string, firstNameIndex: number, lastNameIndex: number, fullNameIndex: number) {
   const directFirstName = getCell(row, firstNameIndex);
   const directLastName = getCell(row, lastNameIndex);
@@ -344,7 +358,8 @@ async function importLoanContracts(csvText: string) {
     const contractNo = getCell(row, contractNoIndex);
     const title = getCell(row, titleIndex);
     const { title: resolvedTitle, firstName, lastName } = resolveNameParts(row, title, firstNameIndex, lastNameIndex, fullNameIndex);
-    const guarantor1 = getCell(row, guarantor1Index);
+    const guarantor1 = parseGuarantorValue(getCell(row, guarantor1Index));
+    const guarantor2 = guarantor2Index >= 0 ? parseGuarantorValue(getCell(row, guarantor2Index)) : '';
 
     if (!memberNo || !contractNo || (!firstName && !lastName) || !guarantor1) {
       throw new Error(`ข้อมูลสัญญาเงินกู้ไม่ครบถ้วนที่แถว ${rowIndex + 2}`);
@@ -361,7 +376,7 @@ async function importLoanContracts(csvText: string) {
       status: getCell(row, statusIndex),
       contract_date: parseDate(getCell(row, contractDateIndex)),
       guarantor_1: guarantor1,
-      guarantor_2: guarantor2Index >= 0 ? getCell(row, guarantor2Index) || null : null,
+      guarantor_2: guarantor2 || null,
       updated_at: new Date().toISOString(),
     };
   });

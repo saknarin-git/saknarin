@@ -135,6 +135,20 @@ function splitPersonName(fullName: string, currentTitle: string) {
   };
 }
 
+function parseGuarantorValue(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+
+  const matched = trimmed.match(/^\(([^)]+)\)\s*(.*)$/);
+  if (!matched) {
+    return trimmed;
+  }
+
+  return matched[1].trim();
+}
+
 function resolveNameFields(headers: string[], row: string[]) {
   const titleHeader = findMatchingHeader(headers, 'คำนำหน้าชื่อ');
   const firstNameHeader = findMatchingHeader(headers, 'ชื่อ');
@@ -182,6 +196,13 @@ function toMappedRow(headers: string[], requiredHeaders: string[], row: string[]
 
     if (header === 'สกุล') {
       mappedRow[header] = nameFields.lastName;
+      return;
+    }
+
+    if (header === 'ผู้ค้ำประกันคนที่ 1' || header === 'ผู้ค้ำประกันคนที่ 2') {
+      const actualHeader = findMatchingHeader(headers, header);
+      const columnIndex = actualHeader ? headers.indexOf(actualHeader) : -1;
+      mappedRow[header] = columnIndex >= 0 ? parseGuarantorValue(String(row[columnIndex] ?? '')) : '';
       return;
     }
 
