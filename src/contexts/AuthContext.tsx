@@ -1,7 +1,7 @@
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { SessionData } from '../types';
-import { getDefaultPermissionsForRole } from '../constants/permissions';
+import { readStoredSession, SESSION_STORAGE_EVENT, writeStoredSession } from '../utils/sessionStorage';
 
 interface AuthContextValue {
   session: SessionData | null;
@@ -9,50 +9,25 @@ interface AuthContextValue {
   logout: () => void;
 }
 
-const STORAGE_KEY = 'saknarin-session';
-
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
-function readStoredSession(): SessionData | null {
-  const raw = localStorage.getItem(STORAGE_KEY);
-
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    const parsed = JSON.parse(raw) as Partial<SessionData> & { user?: SessionData['user'] };
-
-    if (!parsed.user || !parsed.access_token || !parsed.refresh_token) {
-      localStorage.removeItem(STORAGE_KEY);
-      return null;
-    }
-
-    return {
-      access_token: parsed.access_token,
-      refresh_token: parsed.refresh_token,
-      user: parsed.user,
-      permissions: parsed.permissions ?? getDefaultPermissionsForRole(parsed.user.role),
-    };
-  } catch {
-    localStorage.removeItem(STORAGE_KEY);
-    return null;
-  }
-}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionData | null>(readStoredSession);
 
   const setSessionData = (nextSession: SessionData | null) => {
     setSession(nextSession);
-
-    if (nextSession) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(nextSession));
-      return;
-    }
-
-    localStorage.removeItem(STORAGE_KEY);
+    writeStoredSession(nextSession);
   };
+
+  useEffect(() => {
+    const handleSessionUpdate = (event: Event) => {
+      const nextSession = (event as CustomEvent<SessionData | null>).detail ?? readStoredSession();
+      setSession(nextSession);
+    };
+
+    window.addEventListener(SESSION_STORAGE_EVENT, handleSessionUpdate as EventListener);
+    return () => window.removeEventListener(SESSION_STORAGE_EVENT, handleSessionUpdate as EventListener);
+  }, []);
 
   const value = useMemo(
     () => ({
