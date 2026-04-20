@@ -30,7 +30,7 @@ const HEADER_ALIASES: Record<string, string[]> = {
 };
 
 const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'fullname', 'full_name', 'name'];
-const KNOWN_TITLES = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
+const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด็กชาย', 'นาย', 'นาง'];
 
 function normalizeHeader(value: string) {
   return value.replace(/\uFEFF/g, '').trim().toLowerCase().replace(/[\s_\-()/]+/g, '');
@@ -117,7 +117,7 @@ function splitPersonName(fullName: string, currentTitle: string) {
   }
 
   let working = normalized;
-  const inferredTitle = KNOWN_TITLES.find((item) => normalized === item || normalized.startsWith(`${item} `)) || '';
+  const inferredTitle = KNOWN_TITLES.find((item) => normalized === item || normalized.startsWith(item)) || '';
   const titleToStrip = currentTitle.trim() || inferredTitle;
   if (titleToStrip && working.startsWith(titleToStrip)) {
     working = working.slice(titleToStrip.length).trim();
