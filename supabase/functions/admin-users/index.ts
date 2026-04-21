@@ -45,6 +45,33 @@ interface ExistingLoanPaymentMatchRow {
   interest_paid: number | null;
 }
 
+function getErrorMessage(error: unknown) {
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  if (error && typeof error === 'object') {
+    const source = error as Record<string, unknown>;
+    const message = typeof source.message === 'string' ? source.message.trim() : '';
+    const details = typeof source.details === 'string' ? source.details.trim() : '';
+    const hint = typeof source.hint === 'string' ? source.hint.trim() : '';
+
+    if (message && details) {
+      return `${message} (${details})`;
+    }
+
+    if (message && hint) {
+      return `${message} (${hint})`;
+    }
+
+    if (message) {
+      return message;
+    }
+  }
+
+  return 'ไม่สามารถจัดการข้อมูลผู้ใช้งานได้';
+}
+
 const FULL_NAME_ALIASES = ['ชื่อ-สกุล', 'ชื่อสกุล', 'ชื่อ และ สกุล', 'ชื่อและสกุล', 'ชื่อ-นามสกุล', 'ชื่อ นามสกุล', 'ชื่อผู้กู้', 'ชื่อผู้กู้สกุล', 'ชื่อผู้กู้-สกุล', 'ชื่อผู้กู้-นามสกุล', 'ชื่อผู้กู้ นามสกุล', 'ชื่อผู้กู้/สกุล', 'ชื่อ-สกุลผู้กู้', 'ชื่อสมาชิก', 'fullname', 'full_name', 'name'];
 const KNOWN_TITLES = ['นางสาว', 'เด็กหญิง', 'เด็กชาย', 'นาย', 'นาง'];
 const TEMPORARY_GUARANTOR_STATUS = 'ผู้ค้ำชั่วคราว';
@@ -965,7 +992,7 @@ Deno.serve(async (request) => {
 
     return jsonResponse({ success: false, message: 'Method not allowed' }, 405);
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'ไม่สามารถจัดการข้อมูลผู้ใช้งานได้';
+    const message = getErrorMessage(error);
     const status = message === 'Unauthorized' ? 401 : message === 'Forbidden' ? 403 : 400;
     return jsonResponse({ success: false, message }, status);
   }
