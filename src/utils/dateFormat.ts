@@ -2,8 +2,12 @@ function pad2(value: number) {
   return String(value).padStart(2, '0');
 }
 
-function formatDateParts(year: number, month: number, day: number) {
-  return `${pad2(day)}/${pad2(month)}/${year}`;
+function toBuddhistYear(year: number) {
+  return year + 543;
+}
+
+function formatDateParts(day: number, month: number, year: number) {
+  return `${pad2(day)}/${pad2(month)}/${toBuddhistYear(year)}`;
 }
 
 export function formatDateOnly(value: string | null) {
@@ -18,7 +22,7 @@ export function formatDateOnly(value: string | null) {
 
   const isoDateMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (isoDateMatch) {
-    return `${isoDateMatch[3]}/${isoDateMatch[2]}/${isoDateMatch[1]}`;
+    return `${isoDateMatch[3]}/${isoDateMatch[2]}/${toBuddhistYear(Number(isoDateMatch[1]))}`;
   }
 
   const date = new Date(trimmed);
