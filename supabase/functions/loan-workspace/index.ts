@@ -264,7 +264,7 @@ async function getInterestInstallmentsPaid(contractNos: string[], year: number, 
   const fromDate = `${year}-01-01`;
   const { data, error } = await adminClient
     .from('loan_payments')
-    .select('contract_no, interest_installments_paid, paid_date')
+    .select('contract_no, interest_installments_paid, interest_paid, paid_date')
     .in('contract_no', contractNos)
     .gte('paid_date', fromDate)
     .lte('paid_date', paidDateText);
@@ -275,7 +275,10 @@ async function getInterestInstallmentsPaid(contractNos: string[], year: number, 
 
   const result = new Map<string, number>();
   (data ?? []).forEach((item) => {
-    result.set(item.contract_no, (result.get(item.contract_no) ?? 0) + Number(item.interest_installments_paid ?? 0));
+    const installmentsPaid = Number(item.interest_installments_paid ?? 0);
+    const interestPaid = Number(item.interest_paid ?? 0);
+    const normalizedInstallmentsPaid = installmentsPaid > 0 ? installmentsPaid : interestPaid > 0 ? 1 : 0;
+    result.set(item.contract_no, (result.get(item.contract_no) ?? 0) + normalizedInstallmentsPaid);
   });
 
   return result;
