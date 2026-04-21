@@ -1437,6 +1437,19 @@ export function DevManagerPage() {
       {message && <div className="notice">{message}</div>}
 
       <div className="section-space">
+        <nav className="devmanager-subnav" aria-label="เมนู DevManager">
+          {sectionItems.map((item) => (
+            <Link
+              key={item.key}
+              to={item.path}
+              className={`devmanager-tab ${activeSection === item.key ? 'devmanager-tab-active' : ''}`}
+            >
+              <strong>{item.label}</strong>
+              <span>{item.description}</span>
+            </Link>
+          ))}
+        </nav>
+
         {renderSectionContent()}
       </div>
     </div>
