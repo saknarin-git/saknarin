@@ -1287,13 +1287,23 @@ textarea {
   align-items: center;
 }
 
-.loan-calendar-year-badge {
-  min-width: 110px;
-  padding: 10px 14px;
-  border-radius: 999px;
+.loan-calendar-year-picker {
+  display: grid;
+  gap: 4px;
+  min-width: 140px;
+}
+
+.loan-calendar-year-picker span {
+  font-size: 0.84rem;
+  color: #5f765f;
+}
+
+.loan-calendar-year-picker select {
+  min-height: 44px;
   border: 1px solid #cfe3cf;
+  border-radius: 12px;
+  padding: 10px 12px;
   background: #f6fff4;
-  text-align: center;
   font-weight: 600;
   color: #1f5131;
 }

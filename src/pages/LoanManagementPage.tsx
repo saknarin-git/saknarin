@@ -67,6 +67,18 @@ function formatCalendarYear(year: number) {
   return year + 543;
 }
 
+function buildCalendarYearOptions(activeYear: number, currentYear: number) {
+  const years = new Set<number>();
+
+  for (let offset = -5; offset <= 5; offset += 1) {
+    years.add(currentYear + offset);
+  }
+
+  years.add(activeYear);
+
+  return [...years].sort((left, right) => left - right);
+}
+
 function buildWorkingDateInputs(workingDates: LoanWorkingDateEntry[]) {
   return Object.fromEntries(workingDates.map((item) => [item.month, item.date ? formatWorkingDate(item.date) : ''])) as Record<number, string>;
 }
@@ -227,6 +239,7 @@ export function LoanManagementPage() {
   const activeLoanTypes = loanTypes.filter((item) => item.active);
   const availablePaymentDates = getAvailableWorkingDates(workingDates);
   const hasConfiguredPaymentDates = availablePaymentDates.length > 0;
+  const calendarYearOptions = buildCalendarYearOptions(workingCalendarYear, currentCalendarYear);
 
   async function loadConfig(targetYear = workingCalendarYear) {
     setLoadingConfig(true);
@@ -1063,7 +1076,14 @@ export function LoanManagementPage() {
             </div>
             <div className="actions compact-actions loan-settings-actions loan-calendar-year-actions">
               <button type="button" className="btn btn-secondary" disabled={loadingConfig || savingConfig} onClick={() => handleWorkingCalendarYearChange(workingCalendarYear - 1)}>ปีก่อน</button>
-              <div className="loan-calendar-year-badge">ปี {formatCalendarYear(workingCalendarYear)}</div>
+              <label className="loan-calendar-year-picker">
+                <span>เลือกปี</span>
+                <select value={workingCalendarYear} disabled={loadingConfig || savingConfig} onChange={(event) => handleWorkingCalendarYearChange(Number(event.target.value))}>
+                  {calendarYearOptions.map((year) => (
+                    <option key={year} value={year}>ปี {formatCalendarYear(year)}</option>
+                  ))}
+                </select>
+              </label>
               <button type="button" className="btn btn-secondary" disabled={loadingConfig || savingConfig} onClick={() => handleWorkingCalendarYearChange(workingCalendarYear + 1)}>ปีถัดไป</button>
             </div>
           </div>
