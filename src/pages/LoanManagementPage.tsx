@@ -176,7 +176,6 @@ export function LoanManagementPage() {
   const [paymentMode, setPaymentMode] = useState<LoanPaymentMode>('normal');
   const [memberLookup, setMemberLookup] = useState('');
   const [paymentWorkspace, setPaymentWorkspace] = useState<LoanPaymentWorkspaceData | null>(null);
-  const [selectedPaymentContractNo, setSelectedPaymentContractNo] = useState('');
   const [paymentDate, setPaymentDate] = useState(todayString());
   const [principalPaidInput, setPrincipalPaidInput] = useState('');
   const [interestInstallmentsInput, setInterestInstallmentsInput] = useState('1');
@@ -218,50 +217,10 @@ export function LoanManagementPage() {
     return null;
   }
 
-  const selectedPaymentContract = paymentWorkspace
-    ? paymentWorkspace.contracts.find((contract) => contract.contract_no === selectedPaymentContractNo)
-      ?? paymentWorkspace.selected_contract
-    : null;
+  const selectedPaymentContract = paymentWorkspace?.selected_contract ?? null;
   const activeLoanTypes = loanTypes.filter((item) => item.active);
   const availablePaymentDates = getAvailableWorkingDates(workingDates);
   const hasConfiguredPaymentDates = availablePaymentDates.length > 0;
-
-  function applySelectedPaymentContract(
-    contract: LoanPaymentWorkspaceData['selected_contract'],
-    options: { autoPromptOverdue: boolean },
-  ) {
-    setSelectedPaymentContractNo(contract.contract_no);
-    setShowPreviewModal(false);
-    setPreview(null);
-
-    if (paymentMode === 'settlement') {
-      setPrincipalPaidInput(String(contract.suggested_principal_amount));
-      setInterestInstallmentsInput('0');
-      setInterestInstallmentsPaid(0);
-      requestAnimationFrame(() => {
-        principalInputRef.current?.focus();
-        principalInputRef.current?.select();
-      });
-      return;
-    }
-
-    setPrincipalPaidInput('');
-
-    if (options.autoPromptOverdue && contract.overdue_interest_installments > 0) {
-      setInterestInstallmentsInput(String(contract.due_installments_count));
-      setInterestInstallmentsPaid(contract.due_installments_count);
-      setShowOverdueModal(true);
-      return;
-    }
-
-    const defaultInstallments = contract.due_installments_count > 0 ? 1 : 0;
-    setInterestInstallmentsInput(String(defaultInstallments));
-    setInterestInstallmentsPaid(defaultInstallments);
-    requestAnimationFrame(() => {
-      principalInputRef.current?.focus();
-      principalInputRef.current?.select();
-    });
-  }
 
   async function loadConfig() {
     setLoadingConfig(true);
@@ -410,7 +369,6 @@ export function LoanManagementPage() {
     setShowOverdueModal(false);
     setBlockingAlert(null);
     setPreview(null);
-    setSelectedPaymentContractNo('');
 
     try {
       const response = await fetchLoanPaymentWorkspace(accessToken, nextMemberNo, nextMode, paymentDate);
@@ -419,8 +377,15 @@ export function LoanManagementPage() {
       setWorkingDates(response.data.working_dates);
       setPaymentDate((current) => getPreferredPaymentDate(current, response.data.working_dates));
       setMemberLookup(nextMemberNo);
+      const nextPrincipalValue = nextMode === 'settlement'
+        ? String(response.data.selected_contract.suggested_principal_amount)
+        : '';
+      setPrincipalPaidInput(nextPrincipalValue);
 
       if (nextMode === 'settlement') {
+        setInterestInstallmentsInput('0');
+        setInterestInstallmentsPaid(0);
+
         if (response.data.settlement_guard.blocked) {
           setPaymentError(response.data.settlement_guard.reasons[0] ?? 'ยังไม่สามารถกลบหนี้ได้');
           setBlockingAlert({
@@ -430,20 +395,28 @@ export function LoanManagementPage() {
           return;
         }
 
-        applySelectedPaymentContract(response.data.selected_contract, { autoPromptOverdue: false });
+        requestAnimationFrame(() => {
+          principalInputRef.current?.focus();
+          principalInputRef.current?.select();
+        });
         return;
       }
 
-      applySelectedPaymentContract(response.data.selected_contract, {
-        autoPromptOverdue: response.data.contracts.length === 1,
-      });
-
-      if (response.data.contracts.length > 1) {
-        setPaymentMessage(`พบ ${response.data.contracts.length} สัญญา กรุณาเลือกสัญญาที่ต้องการทำรายการก่อน`);
+      if (response.data.selected_contract.overdue_interest_installments > 0) {
+        setInterestInstallmentsInput(String(response.data.selected_contract.due_installments_count));
+        setInterestInstallmentsPaid(response.data.selected_contract.due_installments_count);
+        setShowOverdueModal(true);
+      } else {
+        const defaultInstallments = response.data.selected_contract.due_installments_count > 0 ? 1 : 0;
+        setInterestInstallmentsInput(String(defaultInstallments));
+        setInterestInstallmentsPaid(defaultInstallments);
+        requestAnimationFrame(() => {
+          principalInputRef.current?.focus();
+          principalInputRef.current?.select();
+        });
       }
     } catch (error) {
       setPaymentWorkspace(null);
-      setSelectedPaymentContractNo('');
       setPaymentError(error instanceof Error ? error.message : 'ค้นหาข้อมูลรับชำระไม่สำเร็จ');
     } finally {
       setLoadingPaymentWorkspace(false);
@@ -453,7 +426,6 @@ export function LoanManagementPage() {
   function handlePaymentModeChange(nextMode: LoanPaymentMode) {
     setPaymentMode(nextMode);
     setPaymentWorkspace(null);
-    setSelectedPaymentContractNo('');
     setShowPreviewModal(false);
     setShowOverdueModal(false);
     setBlockingAlert(null);
@@ -714,7 +686,6 @@ export function LoanManagementPage() {
                 onClick={() => {
                   setMemberLookup('');
                   setPaymentWorkspace(null);
-                  setSelectedPaymentContractNo('');
                   setPaymentError('');
                   setPaymentMessage('');
                   setBlockingAlert(null);
@@ -737,7 +708,7 @@ export function LoanManagementPage() {
           {selectedPaymentContract && (
             <div className="loan-payment-summary-grid">
               <div className="loan-payment-summary-card">
-                <span>สัญญาที่เลือกสำหรับทำรายการ</span>
+                <span>สัญญาที่เลือกอัตโนมัติ</span>
                 <strong>{selectedPaymentContract.contract_no}</strong>
                 <div className="muted">{selectedPaymentContract.title}{selectedPaymentContract.first_name} {selectedPaymentContract.last_name}</div>
               </div>
@@ -760,6 +731,27 @@ export function LoanManagementPage() {
                 <span>งวดดอกที่ถึงกำหนด</span>
                 <strong>{selectedPaymentContract.due_installments_count} งวด</strong>
                 <div className="muted">ค้างจากเดือนก่อน {selectedPaymentContract.overdue_interest_installments} งวด</div>
+              </div>
+            </div>
+          )}
+
+          {selectedPaymentContract && (
+            <div className="notice loan-calculation-debug">
+              <strong>รายละเอียดการคำนวณงวดดอก</strong>
+              <div className="muted">วันที่สร้างสัญญา {formatWorkingDate(selectedPaymentContract.contract_date)} | วันทำการที่ถูกนำมานับ: {selectedPaymentContract.applicable_working_dates.length > 0 ? selectedPaymentContract.applicable_working_dates.map((date) => formatWorkingDate(date)).join(', ') : 'ไม่มี'}</div>
+              <div className="muted">รายการรับชำระที่ระบบนำมานับ: {selectedPaymentContract.counted_payments.length}</div>
+              <div className="loan-calculation-debug-list">
+                {selectedPaymentContract.counted_payments.length === 0 ? (
+                  <div className="muted">ยังไม่มีรายการรับชำระที่ระบบใช้ในการนับงวดดอกก่อนวันทำรายการนี้</div>
+                ) : (
+                  selectedPaymentContract.counted_payments.map((payment, index) => (
+                    <div key={`${payment.paid_date}-${index + 1}`} className="loan-calculation-debug-item">
+                      <strong>{formatWorkingDate(payment.paid_date)}</strong>
+                      <div className="muted">โหมด {payment.payment_mode} | เงินต้น {formatCurrency(payment.principal_paid)} | ดอกเบี้ย {formatCurrency(payment.interest_paid)} | งวดดอกในรายการ {payment.interest_installments_paid} | ระบบนับให้ {payment.normalized_installments_paid} งวด</div>
+                      <div className="muted">หมายเหตุ: {payment.note || '-'}</div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -805,27 +797,17 @@ export function LoanManagementPage() {
         <section className="card">
           <h3 className="section-title">สัญญาของสมาชิก</h3>
           {!paymentWorkspace ? (
-            <p className="muted">หลังจากค้นหาเลขสมาชิก ระบบจะแสดงสัญญาที่เกี่ยวข้องเพื่อให้เลือกสัญญาที่ต้องการทำรายการ</p>
+            <p className="muted">หลังจากค้นหาเลขสมาชิก ระบบจะแสดงสัญญาที่เกี่ยวข้อง และเลือกสัญญาที่ยอดหนี้คงเหลือสูงที่สุดขึ้นมาทำรายการให้ก่อน</p>
           ) : (
             <div className="list">
-              {paymentWorkspace.contracts.map((contract) => (
-                <button
-                  key={contract.contract_no}
-                  type="button"
-                  className={`registry-card loan-contract-card ${selectedPaymentContract?.contract_no === contract.contract_no ? 'registry-card-active loan-contract-primary' : ''}`}
-                  onClick={() => {
-                    setPaymentMessage('');
-                    setPaymentError('');
-                    setShowOverdueModal(false);
-                    applySelectedPaymentContract(contract, { autoPromptOverdue: true });
-                  }}
-                >
+              {paymentWorkspace.contracts.map((contract, index) => (
+                <div key={contract.contract_no} className={`list-item ${index === 0 ? 'loan-contract-primary' : ''}`}>
                   <div className="topbar">
                     <div>
                       <strong>{contract.contract_no}</strong>
                       <div className="muted">{contract.loan_type_name} | ดอกเบี้ยรายปี {formatCurrency(contract.annual_interest_rate)}%</div>
                     </div>
-                    {selectedPaymentContract?.contract_no === contract.contract_no && <span className="badge badge-approved">สัญญาที่เลือกอยู่</span>}
+                    {index === 0 && <span className="badge badge-approved">สัญญาที่ใช้ทำรายการก่อน</span>}
                   </div>
                   <div className="loan-contract-meta">
                     <div>ยอดคงเหลือ {formatCurrency(contract.outstanding_amount)} บาท</div>
@@ -834,7 +816,8 @@ export function LoanManagementPage() {
                     <div>ดอกเบี้ย 1 งวด {formatCurrency(contract.current_interest_due)} บาท</div>
                     {paymentMode === 'settlement' && contract.due_installments_count > 0 && <div className="loan-contract-warning">ยังมีดอกเบี้ยที่ต้องชำระก่อนกลบหนี้</div>}
                   </div>
-                </button>
+                  <div className="muted loan-contract-debug-line">วันที่สร้างสัญญา {formatWorkingDate(contract.contract_date)} | วันทำการที่ถูกนับ {contract.applicable_working_dates.length > 0 ? contract.applicable_working_dates.map((date) => formatWorkingDate(date)).join(', ') : 'ไม่มี'} | รายการที่นับ {contract.counted_payments.length}</div>
+                </div>
               ))}
             </div>
           )}

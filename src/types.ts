@@ -162,6 +162,16 @@ export interface LoanTypeRecord {
 
 export type LoanPaymentMode = 'normal' | 'settlement';
 
+export interface LoanPaymentCountedRecord {
+  paid_date: string;
+  payment_mode: LoanPaymentMode;
+  principal_paid: number;
+  interest_paid: number;
+  interest_installments_paid: number;
+  normalized_installments_paid: number;
+  note: string | null;
+}
+
 export interface LoanPaymentCandidate {
   contract_no: string;
   member_no: string;
@@ -180,6 +190,8 @@ export interface LoanPaymentCandidate {
   next_working_date: string | null;
   contract_date: string | null;
   status: string | null;
+  applicable_working_dates: string[];
+  counted_payments: LoanPaymentCountedRecord[];
 }
 
 export interface LoanWorkingDateEntry {

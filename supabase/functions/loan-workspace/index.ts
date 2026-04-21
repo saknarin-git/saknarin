@@ -219,7 +219,7 @@ async function getDueInterestContracts(memberNo: string, paidDateText: string) {
     return [];
   }
 
-  const installmentsPaidMap = await getInterestInstallmentsPaid(contracts.map((item) => item.contract_no), getPaymentYear(paidDateText), paidDateText);
+  const { totals: installmentsPaidMap } = await getInterestInstallmentsPaid(contracts.map((item) => item.contract_no), getPaymentYear(paidDateText), paidDateText);
 
   return contracts
     .map((contract) => {
@@ -258,7 +258,10 @@ function buildSettlementGuard(
 
 async function getInterestInstallmentsPaid(contractNos: string[], year: number, paidDateText: string) {
   if (contractNos.length === 0) {
-    return new Map<string, number>();
+    return {
+      totals: new Map<string, number>(),
+      countedPayments: new Map<string, Array<Record<string, unknown>>>(),
+    };
   }
 
   const fromDate = `${year}-01-01`;
@@ -274,6 +277,7 @@ async function getInterestInstallmentsPaid(contractNos: string[], year: number, 
   }
 
   const result = new Map<string, number>();
+  const countedPayments = new Map<string, Array<Record<string, unknown>>>();
   (data ?? []).forEach((item) => {
     const principalPaid = Number(item.principal_paid ?? 0);
     const installmentsPaid = Number(item.interest_installments_paid ?? 0);
@@ -291,9 +295,24 @@ async function getInterestInstallmentsPaid(contractNos: string[], year: number, 
           ? 1
           : 0;
     result.set(item.contract_no, (result.get(item.contract_no) ?? 0) + normalizedInstallmentsPaid);
+    countedPayments.set(item.contract_no, [
+      ...(countedPayments.get(item.contract_no) ?? []),
+      {
+        paid_date: String(item.paid_date ?? ''),
+        payment_mode: String(item.payment_mode ?? 'normal'),
+        principal_paid: principalPaid,
+        interest_paid: interestPaid,
+        interest_installments_paid: installmentsPaid,
+        normalized_installments_paid: normalizedInstallmentsPaid,
+        note: item.note ? String(item.note) : null,
+      },
+    ]);
   });
 
-  return result;
+  return {
+    totals: result,
+    countedPayments,
+  };
 }
 
 async function getPaymentWorkspace(memberNo: string, mode: LoanPaymentMode, paidDateText: string) {
@@ -328,7 +347,7 @@ async function getPaymentWorkspace(memberNo: string, mode: LoanPaymentMode, paid
 
   const activeTypeMap = new Map(config.loan_types.map((item) => [item.id, item]));
   const fallbackLoanType = config.loan_types.find((item) => item.active) ?? config.loan_types[0];
-  const [installmentsPaidMap, guaranteeObligations] = await Promise.all([
+  const [{ totals: installmentsPaidMap, countedPayments }, guaranteeObligations] = await Promise.all([
     getInterestInstallmentsPaid((contracts ?? []).map((item) => item.contract_no), getPaymentYear(paidDateText), paidDateText),
     mode === 'settlement' ? getGuaranteeObligations(memberNoTrimmed) : Promise.resolve([]),
   ]);
@@ -349,6 +368,8 @@ async function getPaymentWorkspace(memberNo: string, mode: LoanPaymentMode, paid
       current_interest_due: currentInterestDue,
       suggested_principal_amount: mode === 'settlement' ? Number(contract.outstanding_amount ?? 0) : 0,
       next_working_date: getNextWorkingDate(config.working_dates, paidDateText),
+      applicable_working_dates: applicableWorkingDates.map((item) => item.date),
+      counted_payments: countedPayments.get(contract.contract_no) ?? [],
     };
   });
 
@@ -404,7 +425,7 @@ async function savePayment(payload: Record<string, unknown>, currentUserId: stri
     throw new Error('สัญญานี้ไม่มีหนี้คงเหลือแล้ว');
   }
 
-  const installmentsPaidMap = await getInterestInstallmentsPaid([contract.contract_no], getPaymentYear(paidDate), paidDate);
+  const { totals: installmentsPaidMap } = await getInterestInstallmentsPaid([contract.contract_no], getPaymentYear(paidDate), paidDate);
   const applicableWorkingDates = buildApplicableWorkingDates(config.working_dates, contract.contract_date, paidDate);
   const totalDueInstallments = Math.max(0, applicableWorkingDates.length - (installmentsPaidMap.get(contract.contract_no) ?? 0));
   const defaultInstallmentsToPay = totalDueInstallments > 0 ? 1 : 0;

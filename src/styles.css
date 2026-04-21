@@ -1215,16 +1215,32 @@ textarea {
   background: #f7fff8;
 }
 
-.loan-contract-card {
-  width: 100%;
-  text-align: left;
-}
-
 .loan-contract-meta {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   margin-top: 8px;
+}
+
+.loan-calculation-debug {
+  margin-top: 16px;
+}
+
+.loan-calculation-debug-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.loan-calculation-debug-item {
+  border: 1px solid #dcebdc;
+  border-radius: 12px;
+  background: #fbfffb;
+  padding: 12px;
+}
+
+.loan-contract-debug-line {
+  margin-top: 10px;
 }
 
 .loan-contract-warning {
