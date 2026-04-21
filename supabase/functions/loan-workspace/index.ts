@@ -31,7 +31,7 @@ function buildDefaultWorkingDates(year: number) {
   return monthNumbers.map((month) => ({ month, date: null as string | null }));
 }
 
-function normalizeWorkingCalendar(value: unknown, year: number) {
+function normalizeWorkingCalendar(value: unknown, year: number, options: { strictMonthAlignment?: boolean } = {}) {
   if (!value || typeof value !== 'object') {
     return {
       working_calendar_year: year,
@@ -65,6 +65,10 @@ function normalizeWorkingCalendar(value: unknown, year: number) {
     }
 
     if (date && Number(date.slice(5, 7)) !== month) {
+      if (!options.strictMonthAlignment) {
+        return;
+      }
+
       throw new Error(`วันทำการของเดือน ${month} ต้องเป็นวันที่ในเดือนเดียวกัน`);
     }
 
@@ -530,7 +534,11 @@ async function savePayment(payload: Record<string, unknown>, currentUserId: stri
 
 async function updateConfig(payload: Record<string, unknown>) {
   const workingCalendarYear = Number(payload.working_calendar_year ?? new Date().getFullYear());
-  const workingCalendar = normalizeWorkingCalendar({ year: workingCalendarYear, months: payload.working_dates }, workingCalendarYear);
+  const workingCalendar = normalizeWorkingCalendar(
+    { year: workingCalendarYear, months: payload.working_dates },
+    workingCalendarYear,
+    { strictMonthAlignment: true },
+  );
   const rawLoanTypes = Array.isArray(payload.loan_types) ? payload.loan_types : [];
 
   if (rawLoanTypes.length === 0) {
