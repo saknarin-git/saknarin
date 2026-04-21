@@ -63,6 +63,10 @@ function formatWorkingDate(dateText: string | null) {
   return dateText ? formatDateOnly(dateText) : 'ยังไม่ได้กำหนด';
 }
 
+function formatCalendarYear(year: number) {
+  return year + 543;
+}
+
 function buildWorkingDateInputs(workingDates: LoanWorkingDateEntry[]) {
   return Object.fromEntries(workingDates.map((item) => [item.month, item.date ? formatWorkingDate(item.date) : ''])) as Record<number, string>;
 }
@@ -147,6 +151,7 @@ const defaultForm: LoanFormState = {
 export function LoanManagementPage() {
   const { session } = useAuth();
   const accessToken = session?.access_token ?? '';
+  const currentCalendarYear = new Date().getFullYear();
   const memberInputRef = useRef<HTMLInputElement | null>(null);
   const overdueInputRef = useRef<HTMLInputElement | null>(null);
   const principalInputRef = useRef<HTMLInputElement | null>(null);
@@ -154,9 +159,9 @@ export function LoanManagementPage() {
   const [activeSection, setActiveSection] = useState<LoanSection>('payment');
   const [loans, setLoans] = useState<LoanRegistryRecord[]>([]);
   const [loanTypes, setLoanTypes] = useState<LoanTypeRecord[]>([]);
-  const [workingCalendarYear, setWorkingCalendarYear] = useState(new Date().getFullYear());
-  const [workingDates, setWorkingDates] = useState<LoanWorkingDateEntry[]>(() => buildWorkingDates(new Date().getFullYear()));
-  const [workingDateInputs, setWorkingDateInputs] = useState<Record<number, string>>(() => buildWorkingDateInputs(buildWorkingDates(new Date().getFullYear())));
+  const [workingCalendarYear, setWorkingCalendarYear] = useState(currentCalendarYear);
+  const [workingDates, setWorkingDates] = useState<LoanWorkingDateEntry[]>(() => buildWorkingDates(currentCalendarYear));
+  const [workingDateInputs, setWorkingDateInputs] = useState<Record<number, string>>(() => buildWorkingDateInputs(buildWorkingDates(currentCalendarYear)));
   const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, page_size: 20, total_pages: 1 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -192,7 +197,7 @@ export function LoanManagementPage() {
     }
 
     void loadLoans();
-    void loadConfig();
+    void loadConfig(currentCalendarYear);
   }, [session]);
 
   useEffect(() => {
@@ -223,11 +228,11 @@ export function LoanManagementPage() {
   const availablePaymentDates = getAvailableWorkingDates(workingDates);
   const hasConfiguredPaymentDates = availablePaymentDates.length > 0;
 
-  async function loadConfig() {
+  async function loadConfig(targetYear = workingCalendarYear) {
     setLoadingConfig(true);
 
     try {
-      const response = await fetchLoanWorkspaceConfig(accessToken);
+      const response = await fetchLoanWorkspaceConfig(accessToken, targetYear);
       setLoanTypes(response.data.loan_types);
       setWorkingCalendarYear(response.data.working_calendar_year);
       setWorkingDates(response.data.working_dates);
@@ -375,8 +380,6 @@ export function LoanManagementPage() {
     try {
       const response = await fetchLoanPaymentWorkspace(accessToken, nextMemberNo, nextMode, paymentDate);
       setPaymentWorkspace(response.data);
-      setWorkingCalendarYear(response.data.working_calendar_year);
-      setWorkingDates(response.data.working_dates);
       setPaymentDate((current) => getPreferredPaymentDate(current, response.data.working_dates));
       setMemberLookup(nextMemberNo);
       const nextPrincipalValue = nextMode === 'settlement'
@@ -647,6 +650,17 @@ export function LoanManagementPage() {
       ...current,
       [month]: formatWorkingDate(parsedDate),
     }));
+  }
+
+  function handleWorkingCalendarYearChange(nextYear: number) {
+    if (!Number.isInteger(nextYear) || nextYear < 2000 || nextYear > 2600) {
+      setErrorMessage('ปีปฏิทินวันทำการไม่ถูกต้อง');
+      return;
+    }
+
+    setMessage('');
+    setErrorMessage('');
+    void loadConfig(nextYear);
   }
 
   async function handleSaveConfig() {
@@ -1043,7 +1057,17 @@ export function LoanManagementPage() {
 
         <section className="card">
           <h3 className="section-title">วันทำการกลุ่ม</h3>
-          <div className="muted">กำหนดวันทำการจริงของแต่ละเดือนในปี {workingCalendarYear} เพื่อใช้เป็นงวดดอกเบี้ยของทั้งกลุ่ม</div>
+          <div className="topbar loan-settings-topbar loan-calendar-topbar">
+            <div>
+              <div className="muted">กำหนดวันทำการจริงของแต่ละเดือนในปี {formatCalendarYear(workingCalendarYear)} เพื่อใช้เป็นงวดดอกเบี้ยของทั้งกลุ่ม</div>
+            </div>
+            <div className="actions compact-actions loan-settings-actions loan-calendar-year-actions">
+              <button type="button" className="btn btn-secondary" disabled={loadingConfig || savingConfig} onClick={() => handleWorkingCalendarYearChange(workingCalendarYear - 1)}>ปีก่อน</button>
+              <div className="loan-calendar-year-badge">ปี {formatCalendarYear(workingCalendarYear)}</div>
+              <button type="button" className="btn btn-secondary" disabled={loadingConfig || savingConfig} onClick={() => handleWorkingCalendarYearChange(workingCalendarYear + 1)}>ปีถัดไป</button>
+            </div>
+          </div>
+          <div className="muted">แต่ละปีถูกเก็บแยกกันแล้ว คุณสามารถขึ้นปีใหม่แล้วมากำหนดปีใหม่ได้โดยไม่ทับข้อมูลของปีก่อน</div>
           <div className="working-day-grid">
             {workingDates.map((item) => (
               <label key={item.month} className={`working-day-card ${item.date ? 'working-day-card-active' : ''}`}>

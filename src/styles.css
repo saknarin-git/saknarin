@@ -1278,6 +1278,26 @@ textarea {
   margin-top: 16px;
 }
 
+.loan-calendar-topbar {
+  align-items: center;
+  gap: 12px;
+}
+
+.loan-calendar-year-actions {
+  align-items: center;
+}
+
+.loan-calendar-year-badge {
+  min-width: 110px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid #cfe3cf;
+  background: #f6fff4;
+  text-align: center;
+  font-weight: 600;
+  color: #1f5131;
+}
+
 .working-day-card {
   border: 1px solid #dcebdc;
   border-radius: 16px;

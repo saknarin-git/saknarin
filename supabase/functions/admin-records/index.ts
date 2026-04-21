@@ -69,21 +69,11 @@ function buildDefaultWorkingDates(year: number) {
   return monthNumbers.map((month) => ({ month, date: null as string | null }));
 }
 
-function normalizeWorkingCalendar(value: unknown, year: number) {
-  if (!value || typeof value !== 'object') {
-    return {
-      working_calendar_year: year,
-      working_dates: buildDefaultWorkingDates(year),
-    };
-  }
-
-  const source = value as Record<string, unknown>;
-  const sourceYear = Number(source.year);
-  const effectiveYear = Number.isInteger(sourceYear) ? sourceYear : year;
-  const rawMonths = Array.isArray(source.months) ? source.months : [];
+function normalizeWorkingMonths(rawMonths: unknown, year: number) {
+  const sourceMonths = Array.isArray(rawMonths) ? rawMonths : [];
   const monthMap = new Map<number, string | null>();
 
-  rawMonths.forEach((item) => {
+  sourceMonths.forEach((item) => {
     if (!item || typeof item !== 'object') {
       return;
     }
@@ -98,7 +88,7 @@ function normalizeWorkingCalendar(value: unknown, year: number) {
       return;
     }
 
-    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number(date.slice(0, 4)) !== year)) {
       return;
     }
 
@@ -106,12 +96,48 @@ function normalizeWorkingCalendar(value: unknown, year: number) {
   });
 
   return {
-    working_calendar_year: effectiveYear,
+    working_calendar_year: year,
     working_dates: monthNumbers.map((month) => ({
       month,
       date: monthMap.get(month) ?? null,
     })),
   };
+}
+
+function getStoredWorkingCalendarEntries(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return [] as Array<{ year: number; months: unknown }>;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (Array.isArray(source.years)) {
+    return source.years
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map((item) => ({
+        year: Number(item.year),
+        months: item.months,
+      }))
+      .filter((item) => Number.isInteger(item.year) && item.year >= 1900 && item.year <= 2600);
+  }
+
+  const legacyYear = Number(source.year);
+  if (Number.isInteger(legacyYear)) {
+    return [{ year: legacyYear, months: source.months }];
+  }
+
+  return [] as Array<{ year: number; months: unknown }>;
+}
+
+function normalizeWorkingCalendar(value: unknown, year: number) {
+  const matchedEntry = getStoredWorkingCalendarEntries(value).find((item) => item.year === year);
+  if (!matchedEntry) {
+    return {
+      working_calendar_year: year,
+      working_dates: buildDefaultWorkingDates(year),
+    };
+  }
+
+  return normalizeWorkingMonths(matchedEntry.months, year);
 }
 
 const TEMPORARY_GUARANTOR_STATUS = 'ผู้ค้ำชั่วคราว';
@@ -326,7 +352,8 @@ async function listPaymentAudit(memberNo: string, paidDate: string, page: number
     throw paymentsError ?? settingsError;
   }
 
-  const calendar = normalizeWorkingCalendar(settings?.loan_working_days, new Date().getFullYear());
+  const targetYear = paidDate ? Number(paidDate.slice(0, 4)) : new Date().getFullYear();
+  const calendar = normalizeWorkingCalendar(settings?.loan_working_days, targetYear);
   const memberNos = [...new Set((payments ?? []).map((item) => String(item.member_no ?? '')).filter(Boolean))];
   const creatorIds = [...new Set((payments ?? []).map((item) => String(item.created_by ?? '')).filter(Boolean))];
 

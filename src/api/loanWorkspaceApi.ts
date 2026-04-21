@@ -8,9 +8,14 @@ import type {
   LoanWorkspaceConfig,
 } from '../types';
 
-export async function fetchLoanWorkspaceConfig(token: string) {
+export async function fetchLoanWorkspaceConfig(token: string, year?: number) {
+  const query = new URLSearchParams({ resource: 'config' });
+  if (year) {
+    query.set('year', String(year));
+  }
+
   return apiRequest<{ success: boolean; data: LoanWorkspaceConfig }>(
-    'loan-workspace?resource=config',
+    `loan-workspace?${query.toString()}`,
     { method: 'GET' },
     token,
   );

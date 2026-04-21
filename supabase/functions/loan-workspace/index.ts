@@ -31,21 +31,11 @@ function buildDefaultWorkingDates(year: number) {
   return monthNumbers.map((month) => ({ month, date: null as string | null }));
 }
 
-function normalizeWorkingCalendar(value: unknown, year: number, options: { strictMonthAlignment?: boolean } = {}) {
-  if (!value || typeof value !== 'object') {
-    return {
-      working_calendar_year: year,
-      working_dates: buildDefaultWorkingDates(year),
-    };
-  }
-
-  const source = value as Record<string, unknown>;
-  const sourceYear = Number(source.year);
-  const effectiveYear = Number.isInteger(sourceYear) && sourceYear === year ? sourceYear : year;
-  const rawMonths = Array.isArray(source.months) ? source.months : [];
+function normalizeWorkingMonths(rawMonths: unknown, year: number, options: { strictMonthAlignment?: boolean } = {}) {
+  const sourceMonths = Array.isArray(rawMonths) ? rawMonths : [];
   const monthMap = new Map<number, string | null>();
 
-  rawMonths.forEach((item) => {
+  sourceMonths.forEach((item) => {
     if (!item || typeof item !== 'object') {
       return;
     }
@@ -60,7 +50,7 @@ function normalizeWorkingCalendar(value: unknown, year: number, options: { stric
       return;
     }
 
-    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number(date.slice(0, 4)) !== effectiveYear)) {
+    if (date && (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number(date.slice(0, 4)) !== year)) {
       return;
     }
 
@@ -76,11 +66,67 @@ function normalizeWorkingCalendar(value: unknown, year: number, options: { stric
   });
 
   return {
-    working_calendar_year: effectiveYear,
+    working_calendar_year: year,
     working_dates: monthNumbers.map((month) => ({
       month,
       date: monthMap.get(month) ?? null,
     })),
+  };
+}
+
+function getStoredWorkingCalendarEntries(value: unknown) {
+  if (!value || typeof value !== 'object') {
+    return [] as Array<{ year: number; months: unknown }>;
+  }
+
+  const source = value as Record<string, unknown>;
+  if (Array.isArray(source.years)) {
+    return source.years
+      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+      .map((item) => ({
+        year: Number(item.year),
+        months: item.months,
+      }))
+      .filter((item) => Number.isInteger(item.year) && item.year >= 1900 && item.year <= 2600);
+  }
+
+  const legacyYear = Number(source.year);
+  if (Number.isInteger(legacyYear)) {
+    return [{ year: legacyYear, months: source.months }];
+  }
+
+  return [] as Array<{ year: number; months: unknown }>;
+}
+
+function normalizeWorkingCalendar(value: unknown, year: number, options: { strictMonthAlignment?: boolean } = {}) {
+  const matchedEntry = getStoredWorkingCalendarEntries(value).find((item) => item.year === year);
+  if (!matchedEntry) {
+    return {
+      working_calendar_year: year,
+      working_dates: buildDefaultWorkingDates(year),
+    };
+  }
+
+  return normalizeWorkingMonths(matchedEntry.months, year, options);
+}
+
+function buildStoredWorkingCalendar(value: unknown, nextCalendar: { working_calendar_year: number; working_dates: Array<{ month: number; date: string | null }> }) {
+  const calendarEntries = new Map<number, Array<{ month: number; date: string | null }>>();
+
+  getStoredWorkingCalendarEntries(value).forEach((item) => {
+    const normalized = normalizeWorkingMonths(item.months, item.year);
+    calendarEntries.set(item.year, normalized.working_dates);
+  });
+
+  calendarEntries.set(nextCalendar.working_calendar_year, nextCalendar.working_dates);
+
+  return {
+    years: [...calendarEntries.entries()]
+      .sort((left, right) => left[0] - right[0])
+      .map(([storedYear, months]) => ({
+        year: storedYear,
+        months,
+      })),
   };
 }
 
@@ -581,14 +627,19 @@ async function updateConfig(payload: Record<string, unknown>) {
     throw upsertError;
   }
 
+  const { data: settings } = await adminClient
+    .from('app_settings')
+    .select('loan_working_days')
+    .eq('id', 1)
+    .maybeSingle();
+
+  const mergedWorkingCalendar = buildStoredWorkingCalendar(settings?.loan_working_days, workingCalendar);
+
   const { error: settingsError } = await adminClient
     .from('app_settings')
     .upsert({
       id: 1,
-      loan_working_days: {
-        year: workingCalendar.working_calendar_year,
-        months: workingCalendar.working_dates,
-      },
+      loan_working_days: mergedWorkingCalendar,
       updated_at: new Date().toISOString(),
     });
 
@@ -596,7 +647,7 @@ async function updateConfig(payload: Record<string, unknown>) {
     throw settingsError;
   }
 
-  return getConfig();
+  return getConfig(workingCalendar.working_calendar_year);
 }
 
 Deno.serve(async (request) => {
@@ -612,7 +663,8 @@ Deno.serve(async (request) => {
       const resource = getResource(url.searchParams.get('resource'));
 
       if (resource === 'config') {
-        return jsonResponse({ success: true, data: await getConfig() });
+        const targetYear = Number(url.searchParams.get('year') ?? new Date().getFullYear());
+        return jsonResponse({ success: true, data: await getConfig(Number.isInteger(targetYear) ? targetYear : new Date().getFullYear()) });
       }
 
       const memberNo = url.searchParams.get('memberNo')?.trim() ?? '';
