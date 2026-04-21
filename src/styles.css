@@ -1092,8 +1092,16 @@ textarea {
   margin-top: 16px;
 }
 
-.loan-payment-field input {
+.loan-payment-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.loan-payment-field input,
+.loan-payment-field select {
   font-size: 1.1rem;
+  width: 100%;
 }
 
 .loan-payment-field-wide input {
@@ -1764,6 +1772,10 @@ textarea {
   .login-shell,
   .loan-workspace-shell,
   .loan-type-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .loan-payment-form-row {
     grid-template-columns: 1fr;
   }
 

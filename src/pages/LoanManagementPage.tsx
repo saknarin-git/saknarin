@@ -67,6 +67,28 @@ function formatWorkingDate(dateText: string | null) {
   return `${day}/${month}/${year}`;
 }
 
+function getAvailableWorkingDates(workingDates: LoanWorkingDateEntry[]) {
+  return workingDates
+    .map((item) => item.date)
+    .filter((date): date is string => Boolean(date))
+    .sort((left, right) => left.localeCompare(right));
+}
+
+function getPreferredPaymentDate(currentDate: string, workingDates: LoanWorkingDateEntry[]) {
+  const availableDates = getAvailableWorkingDates(workingDates);
+  if (availableDates.length === 0) {
+    return currentDate;
+  }
+
+  if (availableDates.includes(currentDate)) {
+    return currentDate;
+  }
+
+  const today = todayString();
+  const latestPastOrToday = [...availableDates].reverse().find((date) => date <= today);
+  return latestPastOrToday ?? availableDates[0];
+}
+
 function buildDraftLoanTypeName(existingLoanTypes: LoanTypeRecord[]) {
   let sequence = existingLoanTypes.length + 1;
   while (existingLoanTypes.some((item) => item.name.trim() === `ประเภทเงินกู้ ${sequence}`)) {
@@ -197,6 +219,8 @@ export function LoanManagementPage() {
 
   const selectedPaymentContract = paymentWorkspace?.selected_contract ?? null;
   const activeLoanTypes = loanTypes.filter((item) => item.active);
+  const availablePaymentDates = getAvailableWorkingDates(workingDates);
+  const hasConfiguredPaymentDates = availablePaymentDates.length > 0;
 
   async function loadConfig() {
     setLoadingConfig(true);
@@ -206,6 +230,7 @@ export function LoanManagementPage() {
       setLoanTypes(response.data.loan_types);
       setWorkingCalendarYear(response.data.working_calendar_year);
       setWorkingDates(response.data.working_dates);
+      setPaymentDate((current) => getPreferredPaymentDate(current, response.data.working_dates));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'โหลดการตั้งค่าสินเชื่อไม่สำเร็จ');
     } finally {
@@ -350,6 +375,7 @@ export function LoanManagementPage() {
       setPaymentWorkspace(response.data);
       setWorkingCalendarYear(response.data.working_calendar_year);
       setWorkingDates(response.data.working_dates);
+      setPaymentDate((current) => getPreferredPaymentDate(current, response.data.working_dates));
       setMemberLookup(nextMemberNo);
       const nextPrincipalValue = nextMode === 'settlement'
         ? String(response.data.selected_contract.suggested_principal_amount)
@@ -622,22 +648,36 @@ export function LoanManagementPage() {
           </div>
 
           <form className="loan-payment-form" onSubmit={(event) => { event.preventDefault(); void handleLookupMember(); }}>
-            <label className="field loan-payment-field">
-              <span>เลขสมาชิก</span>
-              <input
-                ref={memberInputRef}
-                value={memberLookup}
-                onChange={(event) => setMemberLookup(event.target.value)}
-                placeholder="กรอกเลขสมาชิกแล้วกด Enter"
-                autoComplete="off"
-              />
-            </label>
-            <label className="field loan-payment-field">
-              <span>วันที่รับชำระ</span>
-              <input value={paymentDate} onChange={(event) => setPaymentDate(event.target.value)} type="date" />
-            </label>
+            <div className="loan-payment-form-row">
+              <label className="field loan-payment-field">
+                <span>เลขสมาชิก</span>
+                <input
+                  ref={memberInputRef}
+                  value={memberLookup}
+                  onChange={(event) => setMemberLookup(event.target.value)}
+                  placeholder="กรอกเลขสมาชิกแล้วกด Enter"
+                  autoComplete="off"
+                />
+              </label>
+              <label className="field loan-payment-field">
+                <span>วันที่รับชำระ</span>
+                <select
+                  value={hasConfiguredPaymentDates ? paymentDate : ''}
+                  onChange={(event) => setPaymentDate(event.target.value)}
+                  disabled={!hasConfiguredPaymentDates}
+                >
+                  {hasConfiguredPaymentDates ? (
+                    availablePaymentDates.map((date) => (
+                      <option key={date} value={date}>{formatWorkingDate(date)}</option>
+                    ))
+                  ) : (
+                    <option value="">ยังไม่ได้กำหนดวันทำการกลุ่ม</option>
+                  )}
+                </select>
+              </label>
+            </div>
             <div className="actions compact-actions">
-              <button type="submit" className="btn btn-primary" disabled={loadingPaymentWorkspace}>
+              <button type="submit" className="btn btn-primary" disabled={loadingPaymentWorkspace || !hasConfiguredPaymentDates}>
                 {loadingPaymentWorkspace ? 'กำลังค้นหา...' : 'ค้นหาเลขสมาชิก'}
               </button>
               <button
@@ -653,6 +693,7 @@ export function LoanManagementPage() {
                   setShowPreviewModal(false);
                   setPrincipalPaidInput('');
                   setPreview(null);
+                  setPaymentDate(getPreferredPaymentDate(todayString(), workingDates));
                   requestAnimationFrame(() => memberInputRef.current?.focus());
                 }}
               >
