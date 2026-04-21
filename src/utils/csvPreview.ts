@@ -296,11 +296,11 @@ function isValidDate(value: string) {
     return false;
   }
 
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+  if (/^\d{4}-\d{2}-\d{2}(?:[ t]\d{2}:\d{2}:\d{2})?$/.test(trimmed)) {
     return true;
   }
 
-  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) {
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}(?:\s+\d{2}:\d{2}:\d{2})?$/.test(trimmed)) {
     return true;
   }
 

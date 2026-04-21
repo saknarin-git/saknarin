@@ -223,10 +223,12 @@ function parseDate(value: string) {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
-  const isoMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) return trimmed;
+  const dateOnly = trimmed.split(/[ T]/)[0];
 
-  const thaiMatch = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const isoMatch = dateOnly.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return dateOnly;
+
+  const thaiMatch = dateOnly.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   if (thaiMatch) {
     const day = thaiMatch[1].padStart(2, '0');
     const month = thaiMatch[2].padStart(2, '0');
@@ -266,11 +268,12 @@ function detectPaymentMode(status: string, note: string, remainingBalance: numbe
 
 function buildImportedPaymentNote(note: string, status: string, installments: number, principalPaid: number, interestPaid: number, remainingBalance: number) {
   const trimmedNote = note.trim();
-  if (trimmedNote) {
-    return trimmedNote;
+  const normalizedNote = trimmedNote === '-' ? '' : trimmedNote;
+  if (normalizedNote) {
+    return normalizedNote;
   }
 
-  if (detectPaymentMode(status, trimmedNote, remainingBalance) === 'settlement') {
+  if (detectPaymentMode(status, normalizedNote, remainingBalance) === 'settlement') {
     return 'กลบหนี้';
   }
 
