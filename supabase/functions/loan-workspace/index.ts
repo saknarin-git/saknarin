@@ -64,6 +64,10 @@ function normalizeWorkingCalendar(value: unknown, year: number) {
       return;
     }
 
+    if (date && Number(date.slice(5, 7)) !== month) {
+      throw new Error(`วันทำการของเดือน ${month} ต้องเป็นวันที่ในเดือนเดียวกัน`);
+    }
+
     monthMap.set(month, date);
   });
 
