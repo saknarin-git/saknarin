@@ -153,7 +153,7 @@ function getPageRows(rows: LoanReportRow[], pageSize: number) {
   return chunk;
 }
 
-function loadPaperSettings() {
+function loadPaperSettings(): LoanReportPaperSettings {
   if (typeof window === 'undefined') {
     return defaultPaperSettings;
   }
