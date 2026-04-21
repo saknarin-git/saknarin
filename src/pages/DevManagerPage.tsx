@@ -6,6 +6,7 @@ import { APP_GROUP_NAME } from '../constants/appBrand';
 import { canManageRole, defaultRolePermissions, getAssignableRoles, permissionLabels, roleLabels, roleLevelLabels } from '../constants/permissions';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
+import { formatDateOnly } from '../utils/dateFormat';
 import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, LoanPaymentAuditRecord, LoanWorkingDateEntry, PaginationMeta, PermissionKey, PermissionSet, UserRole } from '../types';
 import { buildCsvPreview } from '../utils/csvPreview';
 
@@ -75,12 +76,7 @@ function getSectionFromPath(pathname: string): DevManagerSection | null {
 }
 
 function formatDisplayDate(dateText: string | null) {
-  if (!dateText) {
-    return '-';
-  }
-
-  const [year, month, day] = dateText.split('-');
-  return `${day}/${month}/${year}`;
+  return formatDateOnly(dateText);
 }
 
 function formatMoney(value: number) {

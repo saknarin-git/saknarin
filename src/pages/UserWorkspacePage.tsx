@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { StatusBadge } from '../components/StatusBadge';
 import type { PermissionKey, ProfileUpdatePayload, TitlePrefix, UserProfileDetails, UserRole } from '../types';
 import { permissionLabels, roleLabels } from '../constants/permissions';
+import { formatDateTime } from '../utils/dateFormat';
 
 const titleOptions: TitlePrefix[] = ['นาย', 'นาง', 'นางสาว', 'เด็กชาย', 'เด็กหญิง'];
 
@@ -19,23 +20,6 @@ function getRoleLabel(role: UserRole) {
   }
 
   return roleLabels[role];
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return '-';
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return '-';
-  }
-
-  return new Intl.DateTimeFormat('th-TH', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(date);
 }
 
 function getPermissionEntries(profile: UserProfileDetails) {

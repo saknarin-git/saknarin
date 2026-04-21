@@ -4,6 +4,7 @@ import { fetchLoanPaymentWorkspace, fetchLoanWorkspaceConfig, saveLoanPayment, u
 import { AppMenu } from '../components/AppMenu';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../contexts/AuthContext';
+import { formatDateOnly } from '../utils/dateFormat';
 import type {
   LoanPaymentMode,
   LoanPaymentPreview,
@@ -59,12 +60,7 @@ function buildWorkingDates(year: number): LoanWorkingDateEntry[] {
 }
 
 function formatWorkingDate(dateText: string | null) {
-  if (!dateText) {
-    return 'ยังไม่ได้กำหนด';
-  }
-
-  const [year, month, day] = dateText.split('-');
-  return `${day}/${month}/${year}`;
+  return dateText ? formatDateOnly(dateText) : 'ยังไม่ได้กำหนด';
 }
 
 function getAvailableWorkingDates(workingDates: LoanWorkingDateEntry[]) {
@@ -1087,7 +1083,7 @@ export function LoanManagementPage() {
                 </thead>
                 <tbody>
                   <tr>
-                    <td>{preview.paid_date}</td>
+                    <td>{formatWorkingDate(preview.paid_date)}</td>
                     <td>{formatCurrency(preview.principal_paid)}</td>
                     <td>{formatCurrency(preview.interest_paid)}</td>
                     <td>{formatCurrency(preview.remaining_balance)}</td>
