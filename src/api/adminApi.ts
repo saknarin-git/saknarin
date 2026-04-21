@@ -4,6 +4,8 @@ import type {
   AppSettings,
   ApprovalStatus,
   ImportResult,
+  LoanReportData,
+  LoanReportType,
   LoanPaymentAuditData,
   LoanRegistryRecord,
   MemberRegistryRecord,
@@ -214,6 +216,23 @@ export async function fetchLoanPaymentAudit(
   }
 
   return apiRequest<{ success: boolean; data: LoanPaymentAuditData }>(
+    `admin-records?${query.toString()}`,
+    { method: 'GET' },
+    token,
+  );
+}
+
+export async function fetchLoanReport(
+  token: string,
+  options: { reportType: LoanReportType; paidDate: string },
+) {
+  const query = new URLSearchParams({
+    resource: 'reports',
+    reportType: options.reportType,
+    paidDate: options.paidDate,
+  });
+
+  return apiRequest<{ success: boolean; data: LoanReportData }>(
     `admin-records?${query.toString()}`,
     { method: 'GET' },
     token,

@@ -2,7 +2,8 @@ import '../_shared/edge-runtime.d.ts';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
 import { adminClient, ensurePermission } from '../_shared/supabaseAdmin.ts';
 
-type ResourceType = 'members' | 'loans' | 'payment-audit';
+type ResourceType = 'members' | 'loans' | 'payment-audit' | 'reports';
+type LoanReportType = 'working-day' | 'outstanding';
 
 const monthNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
@@ -16,11 +17,19 @@ function parsePage(value: string | null, fallback: number) {
 }
 
 function getResourceType(value: string | null): ResourceType {
-  if (value === 'members' || value === 'loans' || value === 'payment-audit') {
+  if (value === 'members' || value === 'loans' || value === 'payment-audit' || value === 'reports') {
     return value;
   }
 
   throw new Error('resource ไม่ถูกต้อง');
+}
+
+function getLoanReportType(value: string | null): LoanReportType {
+  if (value === 'working-day' || value === 'outstanding') {
+    return value;
+  }
+
+  throw new Error('ประเภทรายงานไม่ถูกต้อง');
 }
 
 function parseDecimal(value: unknown) {
@@ -54,6 +63,19 @@ function parseContractDate(value: unknown) {
   }
 
   throw new Error('วันที่สร้างสัญญาไม่ถูกต้อง');
+}
+
+function parsePaidDate(value: unknown) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) {
+    throw new Error('กรุณาเลือกวันทำการกลุ่ม');
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    throw new Error('วันทำการกลุ่มไม่ถูกต้อง');
+  }
+
+  return trimmed;
 }
 
 function createPagination(total: number, page: number, pageSize: number) {
@@ -138,6 +160,302 @@ function normalizeWorkingCalendar(value: unknown, year: number) {
   }
 
   return normalizeWorkingMonths(matchedEntry.months, year);
+}
+
+function roundMoney(value: number) {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function getPaymentYear(dateText: string) {
+  return Number(dateText.slice(0, 4));
+}
+
+function buildApplicableWorkingDates(
+  workingDates: Array<{ month: number; date: string | null }>,
+  contractDateText: string | null,
+  paidDateText: string,
+) {
+  const paidDate = new Date(`${paidDateText}T00:00:00`);
+  const paymentYear = paidDate.getFullYear();
+  const contractDate = contractDateText ? new Date(`${contractDateText}T00:00:00`) : null;
+
+  return workingDates
+    .filter((entry) => entry.date)
+    .map((entry) => ({
+      month: entry.month,
+      date: entry.date as string,
+      dateValue: new Date(`${entry.date}T00:00:00`),
+    }))
+    .filter((entry) => entry.dateValue.getFullYear() === paymentYear)
+    .filter((entry) => entry.dateValue <= paidDate)
+    .filter((entry) => {
+      if (!contractDate) {
+        return true;
+      }
+
+      if (contractDate.getFullYear() < paymentYear) {
+        return true;
+      }
+
+      return entry.dateValue > contractDate;
+    })
+    .sort((left, right) => left.date.localeCompare(right.date));
+}
+
+async function getInterestInstallmentsPaid(contractNos: string[], year: number, paidDateText: string, includeSelectedDate = true) {
+  if (contractNos.length === 0) {
+    return new Map<string, number>();
+  }
+
+  let query = adminClient
+    .from('loan_payments')
+    .select('contract_no, payment_mode, principal_paid, interest_installments_paid, interest_paid, note, paid_date')
+    .in('contract_no', contractNos)
+    .gte('paid_date', `${year}-01-01`);
+
+  query = includeSelectedDate ? query.lte('paid_date', paidDateText) : query.lt('paid_date', paidDateText);
+
+  const { data, error } = await query;
+  if (error) {
+    throw error;
+  }
+
+  const totals = new Map<string, number>();
+  (data ?? []).forEach((item) => {
+    const principalPaid = Number(item.principal_paid ?? 0);
+    const installmentsPaid = Number(item.interest_installments_paid ?? 0);
+    const interestPaid = Number(item.interest_paid ?? 0);
+    const isNormalPayment = String(item.payment_mode ?? '') === 'normal';
+    const normalizedNote = String(item.note ?? '').toLowerCase();
+    const noteSuggestsInstallment = normalizedNote.includes('ดอกเบี้ย') || normalizedNote.includes('ประจำงวด');
+    const normalizedInstallmentsPaid = installmentsPaid > 0
+      ? installmentsPaid
+      : interestPaid > 0
+        ? 1
+        : isNormalPayment && noteSuggestsInstallment
+          ? 1
+          : isNormalPayment && principalPaid > 0
+            ? 1
+            : 0;
+
+    totals.set(String(item.contract_no ?? ''), (totals.get(String(item.contract_no ?? '')) ?? 0) + normalizedInstallmentsPaid);
+  });
+
+  return totals;
+}
+
+function compareMemberLike(left: string, right: string) {
+  return left.localeCompare(right, 'th-TH', { numeric: true, sensitivity: 'base' });
+}
+
+function buildOutstandingNote(overdueInstallments: number) {
+  if (overdueInstallments <= 0) {
+    return null;
+  }
+
+  return `(${overdueInstallments} งวด)`;
+}
+
+async function buildLoanReport(reportType: LoanReportType, paidDateText: string) {
+  const [{ data: settings, error: settingsError }, { data: members, error: membersError }] = await Promise.all([
+    adminClient.from('app_settings').select('group_name, loan_working_days').eq('id', 1).single(),
+    reportType === 'working-day'
+      ? Promise.resolve({ data: null, error: null })
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (settingsError || !settings) {
+    throw settingsError ?? new Error('ไม่พบการตั้งค่าระบบ');
+  }
+
+  if (membersError) {
+    throw membersError;
+  }
+
+  const paymentYear = getPaymentYear(paidDateText);
+  const calendar = normalizeWorkingCalendar(settings.loan_working_days, paymentYear);
+  const groupName = String(settings.group_name ?? '').trim() || 'กลุ่มออมทรัพย์';
+  const rowsPerPage = 34;
+
+  if (reportType === 'working-day') {
+    const { data: payments, error: paymentsError } = await adminClient
+      .from('loan_payments')
+      .select('id, contract_no, member_no, payment_mode, paid_date, principal_paid, interest_paid, remaining_balance, note')
+      .eq('paid_date', paidDateText);
+
+    if (paymentsError) {
+      throw paymentsError;
+    }
+
+    const paymentRows = payments ?? [];
+    const memberNos = [...new Set(paymentRows.map((item) => String(item.member_no ?? '')).filter(Boolean))];
+    const contractNos = [...new Set(paymentRows.map((item) => String(item.contract_no ?? '')).filter(Boolean))];
+    const [memberResult, contractResult, installmentsBeforeMap] = await Promise.all([
+      memberNos.length > 0
+        ? adminClient.from('members').select('member_no, title, first_name, last_name').in('member_no', memberNos)
+        : Promise.resolve({ data: [], error: null }),
+      contractNos.length > 0
+        ? adminClient.from('loan_contracts').select('contract_no, contract_date').in('contract_no', contractNos)
+        : Promise.resolve({ data: [], error: null }),
+      getInterestInstallmentsPaid(contractNos, paymentYear, paidDateText, false),
+    ]);
+
+    if (memberResult.error || contractResult.error) {
+      throw memberResult.error ?? contractResult.error;
+    }
+
+    const memberNameMap = new Map(
+      (memberResult.data ?? []).map((member) => [
+        String(member.member_no ?? ''),
+        `${String(member.title ?? '')}${String(member.first_name ?? '')} ${String(member.last_name ?? '')}`.trim(),
+      ]),
+    );
+    const contractDateMap = new Map(
+      (contractResult.data ?? []).map((contract) => [String(contract.contract_no ?? ''), contract.contract_date ? String(contract.contract_date) : null]),
+    );
+
+    const normalizedRows = paymentRows
+      .map((payment) => {
+        const contractNo = String(payment.contract_no ?? '');
+        const memberNo = String(payment.member_no ?? '');
+        const principalPaid = Number(payment.principal_paid ?? 0);
+        const interestPaid = Number(payment.interest_paid ?? 0);
+        const remainingBalance = Number(payment.remaining_balance ?? 0);
+        const applicableWorkingDates = buildApplicableWorkingDates(calendar.working_dates, contractDateMap.get(contractNo) ?? null, paidDateText);
+        const dueBeforePayment = Math.max(0, applicableWorkingDates.length - (installmentsBeforeMap.get(contractNo) ?? 0));
+        const overdueInstallments = Math.max(0, dueBeforePayment - 1);
+        const isSettlement = String(payment.payment_mode ?? 'normal') === 'settlement';
+        const noteParts = [
+          overdueInstallments > 0 ? 'ขาดส่ง' : null,
+          isSettlement ? 'กลบหนี้' : null,
+        ].filter(Boolean);
+
+        return {
+          member_no: memberNo,
+          member_name: memberNameMap.get(memberNo) ?? '-',
+          contract_no: contractNo,
+          opening_balance: roundMoney(remainingBalance + principalPaid),
+          principal_paid: principalPaid,
+          interest_paid: interestPaid,
+          remaining_balance: remainingBalance,
+          note: noteParts.length > 0 ? noteParts.join(', ') : (payment.note ? String(payment.note) : null),
+          payment_mode: isSettlement ? 'settlement' : 'normal',
+          overdue_installments: overdueInstallments,
+          is_overdue: overdueInstallments > 0,
+          is_settlement: isSettlement,
+        };
+      })
+      .sort((left, right) => compareMemberLike(left.member_no, right.member_no) || compareMemberLike(left.contract_no, right.contract_no))
+      .map((row, index) => ({
+        sequence: index + 1,
+        ...row,
+      }));
+
+    const totals = normalizedRows.reduce((summary, row) => ({
+      opening_balance: roundMoney(summary.opening_balance + row.opening_balance),
+      principal_paid: roundMoney(summary.principal_paid + (row.is_settlement ? 0 : row.principal_paid)),
+      interest_paid: roundMoney(summary.interest_paid + (row.is_settlement ? 0 : row.interest_paid)),
+      settlement_amount: roundMoney(summary.settlement_amount + (row.is_settlement ? row.principal_paid + row.interest_paid : 0)),
+      cash_received: roundMoney(summary.cash_received + (row.is_settlement ? 0 : row.principal_paid + row.interest_paid)),
+      closing_balance: roundMoney(summary.closing_balance + row.remaining_balance),
+    }), {
+      opening_balance: 0,
+      principal_paid: 0,
+      interest_paid: 0,
+      settlement_amount: 0,
+      cash_received: 0,
+      closing_balance: 0,
+    });
+
+    return {
+      report_type: reportType,
+      title: 'รายงานวันทำการ',
+      subtitle: 'สรุปรายการรับชำระประจำวันทำการกลุ่ม',
+      group_name: groupName,
+      paid_date: paidDateText,
+      working_calendar_year: calendar.working_calendar_year,
+      working_dates: calendar.working_dates,
+      rows_per_page: rowsPerPage,
+      show_settlement_summary: totals.settlement_amount > 0,
+      summary: totals,
+      totals,
+      rows: normalizedRows,
+    };
+  }
+
+  const { data: contracts, error: contractsError } = await adminClient
+    .from('loan_contracts')
+    .select('contract_no, member_no, title, first_name, last_name, outstanding_amount, contract_date')
+    .gt('outstanding_amount', 0)
+    .order('member_no', { ascending: true })
+    .order('contract_no', { ascending: true });
+
+  if (contractsError) {
+    throw contractsError;
+  }
+
+  const contractRows = contracts ?? [];
+  const installmentsPaidMap = await getInterestInstallmentsPaid(contractRows.map((item) => String(item.contract_no ?? '')), paymentYear, paidDateText, true);
+
+  const normalizedRows = contractRows
+    .map((contract, index) => {
+      const openingBalance = Number(contract.outstanding_amount ?? 0);
+      const applicableWorkingDates = buildApplicableWorkingDates(calendar.working_dates, contract.contract_date ? String(contract.contract_date) : null, paidDateText);
+      const totalDueInstallments = Math.max(0, applicableWorkingDates.length - (installmentsPaidMap.get(String(contract.contract_no ?? '')) ?? 0));
+      const overdueInstallments = Math.max(0, totalDueInstallments - 1);
+
+      return {
+        sequence: index + 1,
+        member_no: String(contract.member_no ?? ''),
+        member_name: `${String(contract.title ?? '')}${String(contract.first_name ?? '')} ${String(contract.last_name ?? '')}`.trim(),
+        contract_no: String(contract.contract_no ?? ''),
+        opening_balance: openingBalance,
+        principal_paid: 0,
+        interest_paid: 0,
+        remaining_balance: openingBalance,
+        note: buildOutstandingNote(overdueInstallments),
+        payment_mode: 'normal',
+        overdue_installments: overdueInstallments,
+        is_overdue: overdueInstallments > 0,
+        is_settlement: false,
+      };
+    })
+    .sort((left, right) => compareMemberLike(left.member_no, right.member_no) || compareMemberLike(left.contract_no, right.contract_no))
+    .map((row, index) => ({
+      ...row,
+      sequence: index + 1,
+    }));
+
+  const totalOutstanding = roundMoney(normalizedRows.reduce((sum, row) => sum + row.opening_balance, 0));
+
+  return {
+    report_type: reportType,
+    title: 'รายงานหนี้คงค้าง',
+    subtitle: 'สำหรับใช้ติดตามหนี้คงค้างในวันทำการถัดไป',
+    group_name: groupName,
+    paid_date: paidDateText,
+    working_calendar_year: calendar.working_calendar_year,
+    working_dates: calendar.working_dates,
+    rows_per_page: rowsPerPage,
+    show_settlement_summary: false,
+    summary: {
+      opening_balance: totalOutstanding,
+      principal_paid: 0,
+      interest_paid: 0,
+      settlement_amount: 0,
+      cash_received: 0,
+      closing_balance: totalOutstanding,
+    },
+    totals: {
+      opening_balance: totalOutstanding,
+      principal_paid: 0,
+      interest_paid: 0,
+      settlement_amount: 0,
+      cash_received: 0,
+      closing_balance: totalOutstanding,
+    },
+    rows: normalizedRows,
+  };
 }
 
 const TEMPORARY_GUARANTOR_STATUS = 'ผู้ค้ำชั่วคราว';
@@ -684,6 +1002,14 @@ Deno.serve(async (request) => {
       const pageSize = parsePage(url.searchParams.get('pageSize'), 20);
       const status = url.searchParams.get('status')?.trim() ?? '';
 
+      if (resource === 'reports') {
+        await ensurePermission(accessToken, 'access_devmanager');
+        const reportType = getLoanReportType(url.searchParams.get('reportType'));
+        const paidDate = parsePaidDate(url.searchParams.get('paidDate'));
+        const data = await buildLoanReport(reportType, paidDate);
+        return jsonResponse({ success: true, data });
+      }
+
       if (resource === 'payment-audit') {
         await ensurePermission(accessToken, 'access_devmanager');
         const memberNo = url.searchParams.get('memberNo')?.trim() ?? '';
@@ -706,7 +1032,7 @@ Deno.serve(async (request) => {
     if (request.method === 'POST') {
       const { resource, ...payload } = await request.json() as Record<string, unknown> & { resource?: ResourceType };
       const resourceType = getResourceType(resource ?? null);
-      if (resourceType === 'payment-audit') {
+      if (resourceType === 'payment-audit' || resourceType === 'reports') {
         return jsonResponse({ success: false, message: 'resource ไม่รองรับการสร้างข้อมูล' }, 400);
       }
       await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
@@ -723,7 +1049,7 @@ Deno.serve(async (request) => {
     if (request.method === 'PUT') {
       const { resource, ...payload } = await request.json() as Record<string, unknown> & { resource?: ResourceType };
       const resourceType = getResourceType(resource ?? null);
-      if (resourceType === 'payment-audit') {
+      if (resourceType === 'payment-audit' || resourceType === 'reports') {
         return jsonResponse({ success: false, message: 'resource ไม่รองรับการแก้ไขข้อมูล' }, 400);
       }
       await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
@@ -745,7 +1071,7 @@ Deno.serve(async (request) => {
       };
 
       const resourceType = getResourceType(resource ?? null);
-      if (resourceType === 'payment-audit') {
+      if (resourceType === 'payment-audit' || resourceType === 'reports') {
         return jsonResponse({ success: false, message: 'resource ไม่รองรับการลบข้อมูล' }, 400);
       }
       const currentUser = await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');

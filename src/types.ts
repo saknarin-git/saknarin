@@ -267,6 +267,55 @@ export interface LoanPaymentAuditData {
   working_dates: LoanWorkingDateEntry[];
 }
 
+export type LoanReportType = 'working-day' | 'outstanding';
+
+export interface LoanReportSummary {
+  opening_balance: number;
+  principal_paid: number;
+  interest_paid: number;
+  settlement_amount: number;
+  cash_received: number;
+  closing_balance: number;
+}
+
+export interface LoanReportRow {
+  sequence: number;
+  member_no: string;
+  member_name: string;
+  contract_no: string;
+  opening_balance: number;
+  principal_paid: number;
+  interest_paid: number;
+  remaining_balance: number;
+  note: string | null;
+  payment_mode: LoanPaymentMode;
+  overdue_installments: number;
+  is_overdue: boolean;
+  is_settlement: boolean;
+}
+
+export interface LoanReportData {
+  report_type: LoanReportType;
+  title: string;
+  subtitle: string;
+  group_name: string;
+  paid_date: string;
+  working_calendar_year: number;
+  working_dates: LoanWorkingDateEntry[];
+  rows_per_page: number;
+  show_settlement_summary: boolean;
+  summary: LoanReportSummary;
+  totals: LoanReportSummary;
+  rows: LoanReportRow[];
+}
+
+export interface LoanReportPaperSettings {
+  paper_size: 'a4' | 'letter';
+  orientation: 'portrait' | 'landscape';
+  margin_mm: number;
+  font_scale: number;
+}
+
 export interface PaginationMeta {
   total: number;
   page: number;

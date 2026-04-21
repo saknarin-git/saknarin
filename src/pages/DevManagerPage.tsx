@@ -1,13 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { fetchAdminPanel, fetchLoanPaymentAudit, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
+import { fetchAdminPanel, fetchLoanPaymentAudit, fetchLoanReport, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
+import { fetchLoanWorkspaceConfig } from '../api/loanWorkspaceApi';
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
 import { canManageRole, defaultRolePermissions, getAssignableRoles, permissionLabels, roleLabels, roleLevelLabels } from '../constants/permissions';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDateOnly } from '../utils/dateFormat';
-import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, LoanPaymentAuditRecord, LoanWorkingDateEntry, PaginationMeta, PermissionKey, PermissionSet, UserRole } from '../types';
+import { exportLoanReportToPdf } from '../utils/loanReportExport';
+import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, LoanPaymentAuditRecord, LoanReportData, LoanReportPaperSettings, LoanReportRow, LoanReportType, LoanWorkingDateEntry, PaginationMeta, PermissionKey, PermissionSet, UserRole } from '../types';
 import { buildCsvPreview } from '../utils/csvPreview';
 
 const defaultSettings: AppSettings = {
@@ -41,7 +43,19 @@ const defaultPagination: PaginationMeta = {
   total_pages: 1,
 };
 
-type DevManagerSection = 'home' | 'settings' | 'imports' | 'approvals' | 'payments';
+type DevManagerSection = 'home' | 'settings' | 'imports' | 'approvals' | 'payments' | 'reports';
+
+const reportTypeLabels: Record<LoanReportType, string> = {
+  'working-day': 'รายงานวันทำการ',
+  outstanding: 'รายงานหนี้คงค้าง',
+};
+
+const defaultPaperSettings: LoanReportPaperSettings = {
+  paper_size: 'a4',
+  orientation: 'portrait',
+  margin_mm: 10,
+  font_scale: 1,
+};
 
 const sectionItems: Array<{ key: DevManagerSection; label: string; description: string; path: string }> = [
   { key: 'home', label: 'เมนูหลัก DevManager', description: 'รวมเมนูดูแลระบบทั้งหมดไว้ในหน้าเดียว', path: '/devmanager' },
@@ -49,6 +63,7 @@ const sectionItems: Array<{ key: DevManagerSection; label: string; description: 
   { key: 'imports', label: 'การนำเข้าฐานข้อมูล', description: 'นำเข้าไฟล์ CSV สมาชิกและสินเชื่อ', path: '/devmanager/imports' },
   { key: 'approvals', label: 'ผู้ใช้งานรออนุมัติ', description: 'ตรวจและอนุมัติบัญชีผู้ใช้', path: '/devmanager/approvals' },
   { key: 'payments', label: 'ตรวจสอบรายการรับชำระ', description: 'ค้นหาธุรกรรมรับชำระจากเลขสมาชิกหรือวันทำการกลุ่ม', path: '/devmanager/payments' },
+  { key: 'reports', label: 'รายงาน', description: 'ออกรายงานวันทำการและรายงานหนี้คงค้าง พร้อมพิมพ์และบันทึก PDF', path: '/devmanager/reports' },
 ];
 
 function getSectionFromPath(pathname: string): DevManagerSection | null {
@@ -72,6 +87,10 @@ function getSectionFromPath(pathname: string): DevManagerSection | null {
     return 'payments';
   }
 
+  if (pathname === '/devmanager/reports') {
+    return 'reports';
+  }
+
   return null;
 }
 
@@ -86,10 +105,93 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function formatCalendarYear(year: number) {
+  return year + 543;
+}
+
+function getLatestConfiguredWorkingDate(workingDates: LoanWorkingDateEntry[]) {
+  const configuredDates = workingDates.map((item) => item.date).filter((date): date is string => Boolean(date)).sort((left, right) => left.localeCompare(right));
+  return configuredDates[configuredDates.length - 1] ?? '';
+}
+
+function buildReportYearOptions(activeYear: number, currentYear: number) {
+  const years = new Set<number>();
+  for (let offset = -5; offset <= 5; offset += 1) {
+    years.add(currentYear + offset);
+  }
+  years.add(activeYear);
+  return [...years].sort((left, right) => left - right);
+}
+
+function chunkReportRows(rows: LoanReportRow[], pageSize: number) {
+  const chunks: LoanReportRow[][] = [];
+  for (let index = 0; index < rows.length; index += pageSize) {
+    chunks.push(rows.slice(index, index + pageSize));
+  }
+  return chunks.length > 0 ? chunks : [[]];
+}
+
+function getPageRows(rows: LoanReportRow[], pageSize: number) {
+  const chunk = [...rows];
+  while (chunk.length < pageSize) {
+    chunk.push({
+      sequence: 0,
+      member_no: '',
+      member_name: '',
+      contract_no: '',
+      opening_balance: 0,
+      principal_paid: 0,
+      interest_paid: 0,
+      remaining_balance: 0,
+      note: null,
+      payment_mode: 'normal',
+      overdue_installments: 0,
+      is_overdue: false,
+      is_settlement: false,
+    });
+  }
+  return chunk;
+}
+
+function loadPaperSettings() {
+  if (typeof window === 'undefined') {
+    return defaultPaperSettings;
+  }
+
+  try {
+    const raw = window.localStorage.getItem('loan-report-paper-settings');
+    if (!raw) {
+      return defaultPaperSettings;
+    }
+
+    const parsed = JSON.parse(raw) as Partial<LoanReportPaperSettings>;
+    return {
+      paper_size: parsed.paper_size === 'letter' ? 'letter' : 'a4',
+      orientation: parsed.orientation === 'landscape' ? 'landscape' : 'portrait',
+      margin_mm: typeof parsed.margin_mm === 'number' ? parsed.margin_mm : defaultPaperSettings.margin_mm,
+      font_scale: typeof parsed.font_scale === 'number' ? parsed.font_scale : defaultPaperSettings.font_scale,
+    };
+  } catch {
+    return defaultPaperSettings;
+  }
+}
+
+function getPaperDimensions(settings: LoanReportPaperSettings) {
+  const dimensions = settings.paper_size === 'letter'
+    ? { width: 216, height: 279 }
+    : { width: 210, height: 297 };
+
+  return settings.orientation === 'landscape'
+    ? { width: dimensions.height, height: dimensions.width }
+    : dimensions;
+}
+
 export function DevManagerPage() {
   const location = useLocation();
   const { session, setSessionData } = useAuth();
+  const reportPreviewRef = useRef<HTMLDivElement | null>(null);
   const isDevAdmin = session?.user.role === 'dev_admin';
+  const currentYear = new Date().getFullYear();
   const [users, setUsers] = useState<AppUser[]>([]);
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [importStats, setImportStats] = useState<ImportStats>({ members_count: 0, loan_contracts_count: 0, loan_payments_count: 0 });
@@ -114,6 +216,14 @@ export function DevManagerPage() {
   const [paymentAuditPagination, setPaymentAuditPagination] = useState<PaginationMeta>(defaultPagination);
   const [paymentAuditWorkingDates, setPaymentAuditWorkingDates] = useState<LoanWorkingDateEntry[]>([]);
   const [paymentAuditFilters, setPaymentAuditFilters] = useState({ memberNo: '', paidDate: '' });
+  const [loadingReportConfig, setLoadingReportConfig] = useState(false);
+  const [loadingReport, setLoadingReport] = useState(false);
+  const [savingReportPdf, setSavingReportPdf] = useState(false);
+  const [reportYear, setReportYear] = useState(currentYear);
+  const [reportWorkingDates, setReportWorkingDates] = useState<LoanWorkingDateEntry[]>([]);
+  const [reportFilters, setReportFilters] = useState<{ reportType: LoanReportType; paidDate: string }>({ reportType: 'working-day', paidDate: '' });
+  const [reportData, setReportData] = useState<LoanReportData | null>(null);
+  const [paperSettings, setPaperSettings] = useState<LoanReportPaperSettings>(() => loadPaperSettings());
   const activeSection = getSectionFromPath(location.pathname);
 
   if (!activeSection) {
@@ -135,6 +245,22 @@ export function DevManagerPage() {
 
     void loadPaymentAudit();
   }, [session, activeSection]);
+
+  useEffect(() => {
+    if (!session || activeSection !== 'reports') {
+      return;
+    }
+
+    void loadReportConfig(reportYear);
+  }, [session, activeSection, reportYear]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
+    }
+
+    window.localStorage.setItem('loan-report-paper-settings', JSON.stringify(paperSettings));
+  }, [paperSettings]);
 
   async function loadPanel() {
     if (!session) {
@@ -178,6 +304,208 @@ export function DevManagerPage() {
     } finally {
       setLoadingPaymentAudit(false);
     }
+  }
+
+  async function loadReportConfig(targetYear: number) {
+    if (!session) {
+      return;
+    }
+
+    try {
+      setLoadingReportConfig(true);
+      setReportData(null);
+      const result = await fetchLoanWorkspaceConfig(session.access_token, targetYear);
+      const workingDates = result.data.working_dates;
+      const defaultPaidDate = getLatestConfiguredWorkingDate(workingDates);
+      setReportWorkingDates(workingDates);
+      setReportFilters((current) => ({
+        ...current,
+        paidDate: workingDates.some((item) => item.date === current.paidDate) ? current.paidDate : defaultPaidDate,
+      }));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'โหลดวันทำการสำหรับรายงานไม่สำเร็จ');
+    } finally {
+      setLoadingReportConfig(false);
+    }
+  }
+
+  async function loadReport(nextFilters = reportFilters) {
+    if (!session) {
+      return;
+    }
+
+    try {
+      setLoadingReport(true);
+      const result = await fetchLoanReport(session.access_token, nextFilters);
+      setReportData(result.data);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'โหลดรายงานไม่สำเร็จ');
+    } finally {
+      setLoadingReport(false);
+    }
+  }
+
+  async function handleSaveReportPdf() {
+    if (!reportData || !reportPreviewRef.current) {
+      return;
+    }
+
+    try {
+      setSavingReportPdf(true);
+      const fileName = `${reportTypeLabels[reportData.report_type]}-${reportData.paid_date}.pdf`;
+      await exportLoanReportToPdf(reportPreviewRef.current, fileName, paperSettings);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'บันทึกรายงาน PDF ไม่สำเร็จ');
+    } finally {
+      setSavingReportPdf(false);
+    }
+  }
+
+  function handlePrintReport() {
+    if (!reportData || !reportPreviewRef.current || !window) {
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=1200,height=900');
+    if (!printWindow) {
+      setMessage('ไม่สามารถเปิดหน้าต่างพิมพ์ได้ กรุณาอนุญาต popup ก่อน');
+      return;
+    }
+
+    const copiedStyles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+      .map((element) => element.outerHTML)
+      .join('\n');
+
+    const paperSizeText = paperSettings.paper_size === 'letter' ? 'letter' : 'A4';
+    printWindow.document.write(`<!doctype html><html><head><title>${reportTypeLabels[reportData.report_type]}</title>${copiedStyles}<style>@page { size: ${paperSizeText} ${paperSettings.orientation}; margin: ${paperSettings.margin_mm}mm; } body { background: white; } .page-shell, .hero, .app-header { display:none !important; } .loan-report-preview-shell { margin: 0; padding: 0; } .loan-report-preview { gap: 0; } .loan-report-print-page { box-shadow: none !important; margin: 0 auto 8mm; break-after: page; page-break-after: always; } .loan-report-print-page:last-child { break-after: auto; page-break-after: auto; }</style></head><body>${reportPreviewRef.current.innerHTML}<script>window.onload = () => { window.print(); };</script></body></html>`);
+    printWindow.document.close();
+  }
+
+  function updatePaperSetting<Key extends keyof LoanReportPaperSettings>(key: Key, value: LoanReportPaperSettings[Key]) {
+    setPaperSettings((current) => ({ ...current, [key]: value }));
+  }
+
+  function getReportSummaryItems(report: LoanReportData) {
+    return [
+      { label: 'ยอดหนี้ยกมา', value: report.summary.opening_balance, hidden: false },
+      { label: 'ชำระต้น', value: report.summary.principal_paid, hidden: report.report_type === 'outstanding' || report.summary.principal_paid === 0 },
+      { label: 'ดอกเบี้ย', value: report.summary.interest_paid, hidden: report.report_type === 'outstanding' || report.summary.interest_paid === 0 },
+      { label: 'กลบหนี้', value: report.summary.settlement_amount, hidden: !report.show_settlement_summary || report.summary.settlement_amount === 0 },
+      { label: 'ส่งบัญชี', value: report.summary.cash_received, hidden: report.report_type === 'outstanding' || report.summary.cash_received === 0 },
+      { label: 'หนี้ยกไป', value: report.summary.closing_balance, hidden: false },
+    ].filter((item) => !item.hidden);
+  }
+
+  function getReportPageTotals(report: LoanReportData, rows: LoanReportRow[]) {
+    return rows.reduce((summary, row) => ({
+      opening_balance: summary.opening_balance + row.opening_balance,
+      principal_paid: summary.principal_paid + (report.report_type === 'working-day' && !row.is_settlement ? row.principal_paid : 0),
+      interest_paid: summary.interest_paid + (report.report_type === 'working-day' && !row.is_settlement ? row.interest_paid : 0),
+      closing_balance: summary.closing_balance + (report.report_type === 'working-day' ? row.remaining_balance : 0),
+    }), {
+      opening_balance: 0,
+      principal_paid: 0,
+      interest_paid: 0,
+      closing_balance: 0,
+    });
+  }
+
+  function renderReportPreview(report: LoanReportData) {
+    const pages = chunkReportRows(report.rows, report.rows_per_page);
+    const paperDimensions = getPaperDimensions(paperSettings);
+    const pageStyle = {
+      width: `${paperDimensions.width}mm`,
+      minHeight: `${paperDimensions.height}mm`,
+      padding: `${paperSettings.margin_mm}mm`,
+      fontSize: `${paperSettings.font_scale}rem`,
+    };
+
+    return (
+      <div ref={reportPreviewRef} className="loan-report-preview-shell">
+        <div className="loan-report-preview">
+          <section className="loan-report-print-page loan-report-cover-page" style={pageStyle}>
+            <div className="loan-report-cover-block">
+              <div className="eyebrow">Report Preview</div>
+              <h2>{report.title}</h2>
+              <div className="loan-report-cover-meta">
+                <div><strong>{report.group_name}</strong></div>
+                <div>{report.subtitle}</div>
+                <div>วันทำการกลุ่ม {formatDisplayDate(report.paid_date)}</div>
+              </div>
+            </div>
+            <div className="loan-report-summary-grid">
+              {getReportSummaryItems(report).map((item) => (
+                <div key={item.label} className="loan-report-summary-card">
+                  <span>{item.label}</span>
+                  <strong>{formatMoney(item.value)}</strong>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {pages.map((pageRows, pageIndex) => {
+            const totals = getReportPageTotals(report, pageRows);
+            const paddedRows = getPageRows(pageRows, report.rows_per_page);
+
+            return (
+              <section key={`${report.report_type}-page-${pageIndex + 1}`} className="loan-report-print-page loan-report-detail-page" style={pageStyle}>
+                <div className="loan-report-page-header">
+                  <div>
+                    <strong>{report.title}</strong>
+                    <div className="muted">{report.group_name} | วันทำการ {formatDisplayDate(report.paid_date)}</div>
+                  </div>
+                  <div className="loan-report-page-counter">หน้า {pageIndex + 2}</div>
+                </div>
+
+                <table className="loan-report-table">
+                  <thead>
+                    <tr>
+                      <th>ที่</th>
+                      <th>เลขสมาชิก</th>
+                      <th>ชื่อ</th>
+                      <th>หนี้ยกมา</th>
+                      <th>ชำระต้น</th>
+                      <th>ดอกเบี้ย</th>
+                      <th>คงเหลือ</th>
+                      <th>หมายเหตุ</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paddedRows.map((row, rowIndex) => (
+                      <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={row.sequence > 0 && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : ''}>
+                        <td>{row.sequence || ''}</td>
+                        <td>{row.member_no}</td>
+                        <td>
+                          {row.member_name && <strong>{row.member_name}</strong>}
+                          {row.contract_no && <div className="muted">สัญญา {row.contract_no}</div>}
+                        </td>
+                        <td>{row.sequence > 0 ? formatMoney(row.opening_balance) : ''}</td>
+                        <td>{row.sequence > 0 && report.report_type === 'working-day' && !row.is_settlement ? formatMoney(row.principal_paid) : ''}</td>
+                        <td>{row.sequence > 0 && report.report_type === 'working-day' && !row.is_settlement ? formatMoney(row.interest_paid) : ''}</td>
+                        <td>{row.sequence > 0 && report.report_type === 'working-day' ? formatMoney(row.remaining_balance) : ''}</td>
+                        <td className={row.sequence > 0 && (row.is_settlement || row.is_overdue) ? 'loan-report-note-danger' : ''}>
+                          {row.sequence > 0 ? (report.report_type === 'outstanding' ? row.note ?? '' : row.note ?? '') : ''}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={3}><strong>รวมหน้า</strong></td>
+                      <td><strong>{formatMoney(totals.opening_balance)}</strong></td>
+                      <td><strong>{report.report_type === 'working-day' && totals.principal_paid > 0 ? formatMoney(totals.principal_paid) : ''}</strong></td>
+                      <td><strong>{report.report_type === 'working-day' && totals.interest_paid > 0 ? formatMoney(totals.interest_paid) : ''}</strong></td>
+                      <td><strong>{report.report_type === 'working-day' && totals.closing_balance > 0 ? formatMoney(totals.closing_balance) : ''}</strong></td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    );
   }
 
   async function handleApproval(
@@ -938,6 +1266,141 @@ export function DevManagerPage() {
     );
   }
 
+  function renderReportsSection() {
+    const configuredWorkingDates = reportWorkingDates.filter((item) => item.date);
+    const reportYearOptions = buildReportYearOptions(reportYear, currentYear);
+
+    return (
+      <div className="devmanager-section-stack">
+        <section className="card">
+          <div className="topbar devmanager-section-topbar">
+            <div>
+              <h3 className="section-title">รายงาน</h3>
+              <div className="muted">เลือกวันทำการกลุ่มที่กำหนดไว้ในระบบ แล้วดูรายงานบนหน้าเว็บก่อนบันทึกหรือพิมพ์ PDF</div>
+            </div>
+            <Link to="/devmanager" className="btn btn-secondary">กลับเมนู DevManager</Link>
+          </div>
+
+          <div className="grid-two report-config-grid">
+            <form
+              className="report-filter-card"
+              onSubmit={(event) => {
+                event.preventDefault();
+                void loadReport(reportFilters);
+              }}
+            >
+              <label className="field">
+                <span>ประเภทรายงาน</span>
+                <select value={reportFilters.reportType} onChange={(event) => setReportFilters((current) => ({ ...current, reportType: event.target.value as LoanReportType }))}>
+                  {Object.entries(reportTypeLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>ปีปฏิทิน</span>
+                <select value={reportYear} onChange={(event) => setReportYear(Number(event.target.value))}>
+                  {reportYearOptions.map((year) => (
+                    <option key={year} value={year}>ปี {formatCalendarYear(year)}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span>วันทำการกลุ่ม</span>
+                <select value={reportFilters.paidDate} onChange={(event) => setReportFilters((current) => ({ ...current, paidDate: event.target.value }))} disabled={loadingReportConfig || configuredWorkingDates.length === 0}>
+                  <option value="">เลือกวันทำการ</option>
+                  {configuredWorkingDates.map((item) => (
+                    <option key={`${reportYear}-${item.month}`} value={item.date ?? ''}>{formatDisplayDate(item.date)}</option>
+                  ))}
+                </select>
+              </label>
+              <div className="actions compact-actions">
+                <button type="submit" className="btn btn-primary" disabled={loadingReport || !reportFilters.paidDate}>
+                  {loadingReport ? 'กำลังสร้างรายงาน...' : 'แสดงรายงาน'}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    const nextPaidDate = getLatestConfiguredWorkingDate(reportWorkingDates);
+                    setReportFilters({ reportType: 'working-day', paidDate: nextPaidDate });
+                    setReportData(null);
+                  }}
+                >
+                  ล้างค่า
+                </button>
+              </div>
+            </form>
+
+            <div className="report-paper-settings-card">
+              <h4>ตั้งค่าหน้ากระดาษ</h4>
+              <div className="field">
+                <span>ขนาดกระดาษ</span>
+                <select value={paperSettings.paper_size} onChange={(event) => updatePaperSetting('paper_size', event.target.value as LoanReportPaperSettings['paper_size'])}>
+                  <option value="a4">A4</option>
+                  <option value="letter">Letter</option>
+                </select>
+              </div>
+              <div className="field">
+                <span>แนวกระดาษ</span>
+                <select value={paperSettings.orientation} onChange={(event) => updatePaperSetting('orientation', event.target.value as LoanReportPaperSettings['orientation'])}>
+                  <option value="portrait">แนวตั้ง</option>
+                  <option value="landscape">แนวนอน</option>
+                </select>
+              </div>
+              <div className="field">
+                <span>ระยะขอบ (มม.)</span>
+                <input type="number" min={6} max={25} value={paperSettings.margin_mm} onChange={(event) => updatePaperSetting('margin_mm', Number(event.target.value) || defaultPaperSettings.margin_mm)} />
+              </div>
+              <div className="field">
+                <span>ขนาดตัวอักษร</span>
+                <select value={String(paperSettings.font_scale)} onChange={(event) => updatePaperSetting('font_scale', Number(event.target.value))}>
+                  <option value="0.9">เล็ก</option>
+                  <option value="1">ปกติ</option>
+                  <option value="1.08">ใหญ่</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {configuredWorkingDates.length === 0 && <div className="notice">ปีนี้ยังไม่มีวันทำการกลุ่มที่ตั้งไว้ จึงยังออกรายงานไม่ได้</div>}
+
+          {reportData && (
+            <div className="actions report-export-actions">
+              <button type="button" className="btn btn-primary" disabled={savingReportPdf} onClick={() => void handleSaveReportPdf()}>
+                {savingReportPdf ? 'กำลังบันทึก PDF...' : 'บันทึก PDF'}
+              </button>
+              <button type="button" className="btn btn-secondary" onClick={handlePrintReport}>
+                พิมพ์ PDF
+              </button>
+            </div>
+          )}
+        </section>
+
+        {loadingReport ? (
+          <section className="card"><p className="muted">กำลังสร้างรายงาน...</p></section>
+        ) : reportData ? (
+          <section className="card report-preview-card">
+            <div className="topbar report-preview-topbar">
+              <div>
+                <h3 className="section-title">ตัวอย่างรายงาน</h3>
+                <div className="muted">ตรวจสอบหน้ารายงานก่อนบันทึกหรือพิมพ์ได้ทันทีบนหน้าเว็บ</div>
+              </div>
+              <div className="stats-row">
+                <div className="stat-chip">{reportTypeLabels[reportData.report_type]}</div>
+                <div className="stat-chip">วันทำการ {formatDisplayDate(reportData.paid_date)}</div>
+                <div className="stat-chip">รายการ {reportData.rows.length} แถว</div>
+              </div>
+            </div>
+            {renderReportPreview(reportData)}
+          </section>
+        ) : (
+          <section className="card"><div className="notice">เลือกประเภทรายงานและวันทำการกลุ่ม แล้วกดแสดงรายงานเพื่อดูตัวอย่าง</div></section>
+        )}
+      </div>
+    );
+  }
+
   function renderSectionContent() {
     if (activeSection === 'home') {
       return renderHomeSection();
@@ -953,6 +1416,10 @@ export function DevManagerPage() {
 
     if (activeSection === 'payments') {
       return renderPaymentAuditSection();
+    }
+
+    if (activeSection === 'reports') {
+      return renderReportsSection();
     }
 
     return renderImportsSection();
