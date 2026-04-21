@@ -4,7 +4,7 @@ import { fetchLoanPaymentWorkspace, fetchLoanWorkspaceConfig, saveLoanPayment, u
 import { AppMenu } from '../components/AppMenu';
 import { InputField } from '../components/InputField';
 import { useAuth } from '../contexts/AuthContext';
-import { formatDateOnly } from '../utils/dateFormat';
+import { formatDateOnly, parseDisplayDate } from '../utils/dateFormat';
 import type {
   LoanPaymentMode,
   LoanPaymentPreview,
@@ -61,6 +61,10 @@ function buildWorkingDates(year: number): LoanWorkingDateEntry[] {
 
 function formatWorkingDate(dateText: string | null) {
   return dateText ? formatDateOnly(dateText) : 'ยังไม่ได้กำหนด';
+}
+
+function buildWorkingDateInputs(workingDates: LoanWorkingDateEntry[]) {
+  return Object.fromEntries(workingDates.map((item) => [item.month, item.date ? formatWorkingDate(item.date) : ''])) as Record<number, string>;
 }
 
 function getAvailableWorkingDates(workingDates: LoanWorkingDateEntry[]) {
@@ -152,6 +156,7 @@ export function LoanManagementPage() {
   const [loanTypes, setLoanTypes] = useState<LoanTypeRecord[]>([]);
   const [workingCalendarYear, setWorkingCalendarYear] = useState(new Date().getFullYear());
   const [workingDates, setWorkingDates] = useState<LoanWorkingDateEntry[]>(() => buildWorkingDates(new Date().getFullYear()));
+  const [workingDateInputs, setWorkingDateInputs] = useState<Record<number, string>>(() => buildWorkingDateInputs(buildWorkingDates(new Date().getFullYear())));
   const [pagination, setPagination] = useState<PaginationMeta>({ total: 0, page: 1, page_size: 20, total_pages: 1 });
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -226,6 +231,7 @@ export function LoanManagementPage() {
       setLoanTypes(response.data.loan_types);
       setWorkingCalendarYear(response.data.working_calendar_year);
       setWorkingDates(response.data.working_dates);
+      setWorkingDateInputs(buildWorkingDateInputs(response.data.working_dates));
       setPaymentDate((current) => getPreferredPaymentDate(current, response.data.working_dates));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'โหลดการตั้งค่าสินเชื่อไม่สำเร็จ');
@@ -585,14 +591,62 @@ export function LoanManagementPage() {
   }
 
   function updateWorkingDate(month: number, nextDate: string) {
+    setWorkingDateInputs((current) => ({
+      ...current,
+      [month]: nextDate,
+    }));
+
+    const trimmed = nextDate.trim();
+    if (!trimmed) {
+      setWorkingDates((current) => current.map((item) => (
+        item.month === month
+          ? {
+              ...item,
+              date: null,
+            }
+          : item
+      )));
+      return;
+    }
+
+    const parsedDate = parseDisplayDate(trimmed);
+    if (!parsedDate) {
+      return;
+    }
+
     setWorkingDates((current) => current.map((item) => (
       item.month === month
         ? {
             ...item,
-            date: nextDate || null,
+            date: parsedDate,
           }
         : item
     )));
+  }
+
+  function normalizeWorkingDateInput(month: number) {
+    const currentInput = workingDateInputs[month] ?? '';
+    const trimmed = currentInput.trim();
+
+    if (!trimmed) {
+      setWorkingDateInputs((current) => ({
+        ...current,
+        [month]: '',
+      }));
+      return;
+    }
+
+    const parsedDate = parseDisplayDate(trimmed);
+    if (!parsedDate) {
+      setErrorMessage(`วันทำการเดือน ${monthLabels[month - 1]} ต้องเป็นรูปแบบ วว/ดด/ปปปป`);
+      return;
+    }
+
+    setErrorMessage('');
+    setWorkingDateInputs((current) => ({
+      ...current,
+      [month]: formatWorkingDate(parsedDate),
+    }));
   }
 
   async function handleSaveConfig() {
@@ -601,6 +655,28 @@ export function LoanManagementPage() {
     setErrorMessage('');
 
     try {
+      const normalizedWorkingDates = workingDates.map((item) => {
+        const inputValue = workingDateInputs[item.month] ?? '';
+        const trimmed = inputValue.trim();
+
+        if (!trimmed) {
+          return {
+            ...item,
+            date: null,
+          };
+        }
+
+        const parsedDate = parseDisplayDate(trimmed);
+        if (!parsedDate) {
+          throw new Error(`วันทำการเดือน ${monthLabels[item.month - 1]} ต้องเป็นรูปแบบ วว/ดด/ปปปป`);
+        }
+
+        return {
+          ...item,
+          date: parsedDate,
+        };
+      });
+
       const response = await updateLoanWorkspaceConfig(accessToken, {
         loan_types: loanTypes.map((item) => ({
           id: item.id,
@@ -609,12 +685,14 @@ export function LoanManagementPage() {
           active: item.active,
         })),
         working_calendar_year: workingCalendarYear,
-        working_dates: workingDates,
+        working_dates: normalizedWorkingDates,
       });
 
       setLoanTypes(response.data.loan_types);
       setWorkingCalendarYear(response.data.working_calendar_year);
       setWorkingDates(response.data.working_dates);
+      setWorkingDateInputs(buildWorkingDateInputs(response.data.working_dates));
+      setPaymentDate((current) => getPreferredPaymentDate(current, response.data.working_dates));
       setMessage(response.message);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : 'บันทึกการตั้งค่าสินเชื่อไม่สำเร็จ');
@@ -970,7 +1048,16 @@ export function LoanManagementPage() {
             {workingDates.map((item) => (
               <label key={item.month} className={`working-day-card ${item.date ? 'working-day-card-active' : ''}`}>
                 <span>{monthLabels[item.month - 1]}</span>
-                <input className="working-day-date-input" type="date" value={item.date ?? ''} onChange={(event) => updateWorkingDate(item.month, event.target.value)} />
+                <input
+                  className="working-day-date-input"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="06/01/2569"
+                  value={workingDateInputs[item.month] ?? ''}
+                  onChange={(event) => updateWorkingDate(item.month, event.target.value)}
+                  onBlur={() => normalizeWorkingDateInput(item.month)}
+                />
+                <span className="working-day-date-hint">วว/ดด/ปปปป</span>
               </label>
             ))}
           </div>

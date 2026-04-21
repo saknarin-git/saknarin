@@ -1295,13 +1295,26 @@ textarea {
   background: #f1fff3;
 }
 
-.working-day-date-input,
-.working-day-card input[type='date'] {
+.working-day-date-input {
   width: 100%;
   min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
   display: block;
+  border: 1px solid #cfe3cf;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fcfffb;
+  font-variant-numeric: tabular-nums;
+}
+
+.working-day-date-input::placeholder {
+  color: #89a189;
+}
+
+.working-day-date-hint {
+  font-size: 0.88rem;
+  color: #5f765f;
 }
 
 .modal-overlay {
