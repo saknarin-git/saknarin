@@ -990,6 +990,32 @@ textarea {
   border-bottom: 0;
 }
 
+.payment-audit-filter-bar {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+  margin: 16px 0;
+}
+
+.payment-audit-actions {
+  align-self: end;
+}
+
+.payment-audit-table td {
+  white-space: nowrap;
+}
+
+.payment-audit-table td:nth-child(3),
+.payment-audit-table td:nth-child(11) {
+  white-space: normal;
+  min-width: 180px;
+}
+
+.payment-audit-pagination {
+  margin-top: 14px;
+}
+
 .preview-issues {
   margin-top: 14px;
 }
@@ -1772,6 +1798,10 @@ textarea {
   .login-shell,
   .loan-workspace-shell,
   .loan-type-editor {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-audit-filter-bar {
     grid-template-columns: 1fr;
   }
 

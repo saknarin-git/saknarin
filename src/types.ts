@@ -187,6 +187,24 @@ export interface LoanWorkingDateEntry {
   date: string | null;
 }
 
+export interface LoanPaymentAuditRecord {
+  id: string;
+  external_reference: string | null;
+  contract_no: string;
+  member_no: string;
+  member_name: string;
+  payment_mode: LoanPaymentMode;
+  paid_date: string;
+  principal_paid: number;
+  interest_paid: number;
+  interest_installments_paid: number;
+  remaining_balance: number;
+  transaction_status: string | null;
+  operator_name: string | null;
+  note: string | null;
+  created_at: string;
+}
+
 export interface LoanPaymentWorkspaceData {
   member: {
     member_no: string;
@@ -226,6 +244,13 @@ export interface LoanPaymentRecord extends LoanPaymentPreview {
 
 export interface LoanWorkspaceConfig {
   loan_types: LoanTypeRecord[];
+  working_calendar_year: number;
+  working_dates: LoanWorkingDateEntry[];
+}
+
+export interface LoanPaymentAuditData {
+  payments: LoanPaymentAuditRecord[];
+  pagination: PaginationMeta;
   working_calendar_year: number;
   working_dates: LoanWorkingDateEntry[];
 }

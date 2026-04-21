@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useLocation } from 'react-router-dom';
-import { fetchAdminPanel, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
+import { fetchAdminPanel, fetchLoanPaymentAudit, importCsvData, updateSettings, updateUserStatus } from '../api/adminApi';
 import { AppMenu } from '../components/AppMenu';
 import { APP_GROUP_NAME } from '../constants/appBrand';
 import { canManageRole, defaultRolePermissions, getAssignableRoles, permissionLabels, roleLabels, roleLevelLabels } from '../constants/permissions';
 import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
-import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, PermissionKey, PermissionSet, UserRole } from '../types';
+import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, LoanPaymentAuditRecord, LoanWorkingDateEntry, PaginationMeta, PermissionKey, PermissionSet, UserRole } from '../types';
 import { buildCsvPreview } from '../utils/csvPreview';
 
 const defaultSettings: AppSettings = {
@@ -33,13 +33,21 @@ const defaultOverview: AdminOverview = {
   total_outstanding_amount: 0,
 };
 
-type DevManagerSection = 'home' | 'settings' | 'imports' | 'approvals';
+const defaultPagination: PaginationMeta = {
+  total: 0,
+  page: 1,
+  page_size: 20,
+  total_pages: 1,
+};
+
+type DevManagerSection = 'home' | 'settings' | 'imports' | 'approvals' | 'payments';
 
 const sectionItems: Array<{ key: DevManagerSection; label: string; description: string; path: string }> = [
   { key: 'home', label: 'เมนูหลัก DevManager', description: 'รวมเมนูดูแลระบบทั้งหมดไว้ในหน้าเดียว', path: '/devmanager' },
   { key: 'settings', label: 'การตั้งค่าระบบ', description: 'แก้ไขชื่อกลุ่ม ประกาศ สิทธิ์สมัคร และ permission matrix', path: '/devmanager/settings' },
   { key: 'imports', label: 'การนำเข้าฐานข้อมูล', description: 'นำเข้าไฟล์ CSV สมาชิกและสินเชื่อ', path: '/devmanager/imports' },
   { key: 'approvals', label: 'ผู้ใช้งานรออนุมัติ', description: 'ตรวจและอนุมัติบัญชีผู้ใช้', path: '/devmanager/approvals' },
+  { key: 'payments', label: 'ตรวจสอบรายการรับชำระ', description: 'ค้นหาธุรกรรมรับชำระจากเลขสมาชิกหรือวันทำการกลุ่ม', path: '/devmanager/payments' },
 ];
 
 function getSectionFromPath(pathname: string): DevManagerSection | null {
@@ -59,7 +67,27 @@ function getSectionFromPath(pathname: string): DevManagerSection | null {
     return 'approvals';
   }
 
+  if (pathname === '/devmanager/payments') {
+    return 'payments';
+  }
+
   return null;
+}
+
+function formatDisplayDate(dateText: string | null) {
+  if (!dateText) {
+    return '-';
+  }
+
+  const [year, month, day] = dateText.split('-');
+  return `${day}/${month}/${year}`;
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat('th-TH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
 }
 
 export function DevManagerPage() {
@@ -85,6 +113,11 @@ export function DevManagerPage() {
   const [importingLoans, setImportingLoans] = useState(false);
   const [importingTransactions, setImportingTransactions] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [loadingPaymentAudit, setLoadingPaymentAudit] = useState(false);
+  const [paymentAuditRecords, setPaymentAuditRecords] = useState<LoanPaymentAuditRecord[]>([]);
+  const [paymentAuditPagination, setPaymentAuditPagination] = useState<PaginationMeta>(defaultPagination);
+  const [paymentAuditWorkingDates, setPaymentAuditWorkingDates] = useState<LoanWorkingDateEntry[]>([]);
+  const [paymentAuditFilters, setPaymentAuditFilters] = useState({ memberNo: '', paidDate: '' });
   const activeSection = getSectionFromPath(location.pathname);
 
   if (!activeSection) {
@@ -98,6 +131,14 @@ export function DevManagerPage() {
 
     void loadPanel();
   }, [session]);
+
+  useEffect(() => {
+    if (!session || activeSection !== 'payments') {
+      return;
+    }
+
+    void loadPaymentAudit();
+  }, [session, activeSection]);
 
   async function loadPanel() {
     if (!session) {
@@ -117,6 +158,29 @@ export function DevManagerPage() {
       setMessage(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ');
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function loadPaymentAudit(nextFilters = paymentAuditFilters, nextPage = 1) {
+    if (!session) {
+      return;
+    }
+
+    try {
+      setLoadingPaymentAudit(true);
+      const result = await fetchLoanPaymentAudit(session.access_token, {
+        memberNo: nextFilters.memberNo,
+        paidDate: nextFilters.paidDate,
+        page: nextPage,
+        pageSize: paymentAuditPagination.page_size,
+      });
+      setPaymentAuditRecords(result.data.payments);
+      setPaymentAuditPagination(result.data.pagination);
+      setPaymentAuditWorkingDates(result.data.working_dates);
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'โหลดรายการรับชำระไม่สำเร็จ');
+    } finally {
+      setLoadingPaymentAudit(false);
     }
   }
 
@@ -736,6 +800,148 @@ export function DevManagerPage() {
     );
   }
 
+  function renderPaymentAuditSection() {
+    const configuredWorkingDates = paymentAuditWorkingDates.filter((item) => item.date);
+
+    return (
+      <section className="card">
+        <div className="topbar devmanager-section-topbar">
+          <div>
+            <h3 className="section-title">ตรวจสอบรายการรับชำระ</h3>
+            <div className="muted">ค้นหาธุรกรรมรับชำระจากเลขสมาชิก หรือกรองตามวันทำการกลุ่มที่กำหนดไว้ในระบบ</div>
+          </div>
+          <Link to="/devmanager" className="btn btn-secondary">กลับเมนู DevManager</Link>
+        </div>
+
+        <form
+          className="payment-audit-filter-bar"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void loadPaymentAudit(paymentAuditFilters, 1);
+          }}
+        >
+          <label className="field">
+            <span>เลขสมาชิก</span>
+            <input
+              value={paymentAuditFilters.memberNo}
+              onChange={(event) => setPaymentAuditFilters((current) => ({ ...current, memberNo: event.target.value }))}
+              placeholder="ค้นหาด้วยเลขสมาชิก"
+              autoComplete="off"
+            />
+          </label>
+          <label className="field">
+            <span>วันทำการกลุ่ม</span>
+            <select
+              value={paymentAuditFilters.paidDate}
+              onChange={(event) => setPaymentAuditFilters((current) => ({ ...current, paidDate: event.target.value }))}
+            >
+              <option value="">ทุกวันทำการ</option>
+              {configuredWorkingDates.map((item) => (
+                <option key={item.month} value={item.date ?? ''}>{formatDisplayDate(item.date)}</option>
+              ))}
+            </select>
+          </label>
+          <div className="actions compact-actions payment-audit-actions">
+            <button type="submit" className="btn btn-primary" disabled={loadingPaymentAudit}>
+              {loadingPaymentAudit ? 'กำลังค้นหา...' : 'ค้นหารายการรับชำระ'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => {
+                const resetFilters = { memberNo: '', paidDate: '' };
+                setPaymentAuditFilters(resetFilters);
+                void loadPaymentAudit(resetFilters, 1);
+              }}
+              disabled={loadingPaymentAudit}
+            >
+              ล้างตัวกรอง
+            </button>
+          </div>
+        </form>
+
+        <div className="stats-row">
+          <div className="stat-chip">พบ {paymentAuditPagination.total} รายการ</div>
+          {paymentAuditFilters.memberNo && <div className="stat-chip">เลขสมาชิก: {paymentAuditFilters.memberNo}</div>}
+          {paymentAuditFilters.paidDate && <div className="stat-chip">วันทำการ: {formatDisplayDate(paymentAuditFilters.paidDate)}</div>}
+        </div>
+
+        {loadingPaymentAudit ? (
+          <p className="muted">กำลังโหลดรายการรับชำระ...</p>
+        ) : paymentAuditRecords.length === 0 ? (
+          <div className="notice">ไม่พบรายการรับชำระตามเงื่อนไขที่ค้นหา</div>
+        ) : (
+          <>
+            <div className="preview-table-wrap">
+              <table className="preview-table payment-audit-table">
+                <thead>
+                  <tr>
+                    <th>วันที่รับชำระ</th>
+                    <th>เลขสมาชิก</th>
+                    <th>ชื่อสมาชิก</th>
+                    <th>เลขที่สัญญา</th>
+                    <th>รูปแบบ</th>
+                    <th>เงินต้น</th>
+                    <th>ดอกเบี้ย</th>
+                    <th>งวดดอก</th>
+                    <th>ยอดคงเหลือ</th>
+                    <th>ผู้ทำรายการ</th>
+                    <th>อ้างอิง / สถานะ</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paymentAuditRecords.map((payment) => (
+                    <tr key={payment.id}>
+                      <td>{formatDisplayDate(payment.paid_date)}</td>
+                      <td>{payment.member_no}</td>
+                      <td>
+                        <strong>{payment.member_name}</strong>
+                        {payment.note && <div className="muted">{payment.note}</div>}
+                      </td>
+                      <td>{payment.contract_no}</td>
+                      <td>{payment.payment_mode === 'settlement' ? 'กลบหนี้' : 'ปกติ'}</td>
+                      <td>{formatMoney(payment.principal_paid)}</td>
+                      <td>{formatMoney(payment.interest_paid)}</td>
+                      <td>{payment.interest_installments_paid}</td>
+                      <td>{formatMoney(payment.remaining_balance)}</td>
+                      <td>{payment.operator_name || '-'}</td>
+                      <td>
+                        {payment.external_reference && <div>{payment.external_reference}</div>}
+                        <div className="muted">{payment.transaction_status || '-'}</div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="topbar payment-audit-pagination">
+              <div className="muted">หน้า {paymentAuditPagination.page} / {paymentAuditPagination.total_pages}</div>
+              <div className="actions compact-actions">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={loadingPaymentAudit || paymentAuditPagination.page <= 1}
+                  onClick={() => void loadPaymentAudit(paymentAuditFilters, paymentAuditPagination.page - 1)}
+                >
+                  หน้าก่อน
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={loadingPaymentAudit || paymentAuditPagination.page >= paymentAuditPagination.total_pages}
+                  onClick={() => void loadPaymentAudit(paymentAuditFilters, paymentAuditPagination.page + 1)}
+                >
+                  หน้าถัดไป
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </section>
+    );
+  }
+
   function renderSectionContent() {
     if (activeSection === 'home') {
       return renderHomeSection();
@@ -747,6 +953,10 @@ export function DevManagerPage() {
 
     if (activeSection === 'approvals') {
       return renderApprovalsSection();
+    }
+
+    if (activeSection === 'payments') {
+      return renderPaymentAuditSection();
     }
 
     return renderImportsSection();

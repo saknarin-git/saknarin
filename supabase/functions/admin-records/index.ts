@@ -2,7 +2,9 @@ import '../_shared/edge-runtime.d.ts';
 import { handleOptions, jsonResponse } from '../_shared/cors.ts';
 import { adminClient, ensurePermission } from '../_shared/supabaseAdmin.ts';
 
-type ResourceType = 'members' | 'loans';
+type ResourceType = 'members' | 'loans' | 'payment-audit';
+
+const monthNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
 function parsePage(value: string | null, fallback: number) {
   const numeric = Number(value ?? fallback);
@@ -14,7 +16,7 @@ function parsePage(value: string | null, fallback: number) {
 }
 
 function getResourceType(value: string | null): ResourceType {
-  if (value === 'members' || value === 'loans') {
+  if (value === 'members' || value === 'loans' || value === 'payment-audit') {
     return value;
   }
 
@@ -60,6 +62,55 @@ function createPagination(total: number, page: number, pageSize: number) {
     page,
     page_size: pageSize,
     total_pages: Math.max(1, Math.ceil(total / pageSize)),
+  };
+}
+
+function buildDefaultWorkingDates(year: number) {
+  return monthNumbers.map((month) => ({ month, date: null as string | null }));
+}
+
+function normalizeWorkingCalendar(value: unknown, year: number) {
+  if (!value || typeof value !== 'object') {
+    return {
+      working_calendar_year: year,
+      working_dates: buildDefaultWorkingDates(year),
+    };
+  }
+
+  const source = value as Record<string, unknown>;
+  const sourceYear = Number(source.year);
+  const effectiveYear = Number.isInteger(sourceYear) ? sourceYear : year;
+  const rawMonths = Array.isArray(source.months) ? source.months : [];
+  const monthMap = new Map<number, string | null>();
+
+  rawMonths.forEach((item) => {
+    if (!item || typeof item !== 'object') {
+      return;
+    }
+
+    const entry = item as Record<string, unknown>;
+    const month = Number(entry.month);
+    const date = entry.date === null || entry.date === undefined || String(entry.date).trim() === ''
+      ? null
+      : String(entry.date).trim();
+
+    if (!Number.isInteger(month) || month < 1 || month > 12) {
+      return;
+    }
+
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      return;
+    }
+
+    monthMap.set(month, date);
+  });
+
+  return {
+    working_calendar_year: effectiveYear,
+    working_dates: monthNumbers.map((month) => ({
+      month,
+      date: monthMap.get(month) ?? null,
+    })),
   };
 }
 
@@ -241,6 +292,90 @@ async function listLoans(search: string, page: number, pageSize: number, status:
   return {
     loans: data ?? [],
     pagination: createPagination(count ?? 0, page, pageSize),
+  };
+}
+
+async function listPaymentAudit(memberNo: string, paidDate: string, page: number, pageSize: number) {
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
+  let query = adminClient
+    .from('loan_payments')
+    .select('id, external_reference, contract_no, member_no, payment_mode, paid_date, principal_paid, interest_paid, interest_installments_paid, remaining_balance, transaction_status, operator_name, note, created_by, created_at', { count: 'exact' })
+    .order('paid_date', { ascending: false })
+    .order('created_at', { ascending: false })
+    .range(from, to);
+
+  if (memberNo) {
+    query = query.ilike('member_no', `%${memberNo}%`);
+  }
+
+  if (paidDate) {
+    query = query.eq('paid_date', paidDate);
+  }
+
+  const [paymentsResult, settingsResult] = await Promise.all([
+    query,
+    adminClient.from('app_settings').select('loan_working_days').eq('id', 1).single(),
+  ]);
+
+  const { data: payments, error: paymentsError, count } = paymentsResult;
+  const { data: settings, error: settingsError } = settingsResult;
+
+  if (paymentsError || settingsError) {
+    throw paymentsError ?? settingsError;
+  }
+
+  const calendar = normalizeWorkingCalendar(settings?.loan_working_days, new Date().getFullYear());
+  const memberNos = [...new Set((payments ?? []).map((item) => String(item.member_no ?? '')).filter(Boolean))];
+  const creatorIds = [...new Set((payments ?? []).map((item) => String(item.created_by ?? '')).filter(Boolean))];
+
+  const [{ data: members, error: membersError }, { data: creators, error: creatorsError }] = await Promise.all([
+    memberNos.length > 0
+      ? adminClient.from('members').select('member_no, title, first_name, last_name').in('member_no', memberNos)
+      : Promise.resolve({ data: [], error: null }),
+    creatorIds.length > 0
+      ? adminClient.from('app_users').select('id, title, first_name, last_name, username').in('id', creatorIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+
+  if (membersError || creatorsError) {
+    throw membersError ?? creatorsError;
+  }
+
+  const memberNameMap = new Map(
+    (members ?? []).map((member) => [
+      String(member.member_no),
+      `${String(member.title ?? '')}${String(member.first_name ?? '')} ${String(member.last_name ?? '')}`.trim(),
+    ]),
+  );
+  const creatorNameMap = new Map(
+    (creators ?? []).map((creator) => [
+      String(creator.id),
+      `${String(creator.title ?? '')}${String(creator.first_name ?? '')} ${String(creator.last_name ?? '')}`.trim() || String(creator.username ?? ''),
+    ]),
+  );
+
+  return {
+    payments: (payments ?? []).map((payment) => ({
+      id: String(payment.id ?? ''),
+      external_reference: payment.external_reference ? String(payment.external_reference) : null,
+      contract_no: String(payment.contract_no ?? ''),
+      member_no: String(payment.member_no ?? ''),
+      member_name: memberNameMap.get(String(payment.member_no ?? '')) ?? '-',
+      payment_mode: String(payment.payment_mode ?? 'normal'),
+      paid_date: String(payment.paid_date ?? ''),
+      principal_paid: Number(payment.principal_paid ?? 0),
+      interest_paid: Number(payment.interest_paid ?? 0),
+      interest_installments_paid: Number(payment.interest_installments_paid ?? 0),
+      remaining_balance: Number(payment.remaining_balance ?? 0),
+      transaction_status: payment.transaction_status ? String(payment.transaction_status) : null,
+      operator_name: payment.operator_name ? String(payment.operator_name) : creatorNameMap.get(String(payment.created_by ?? '')) ?? null,
+      note: payment.note ? String(payment.note) : null,
+      created_at: String(payment.created_at ?? ''),
+    })),
+    pagination: createPagination(count ?? 0, page, pageSize),
+    ...calendar,
   };
 }
 
@@ -517,11 +652,20 @@ Deno.serve(async (request) => {
 
     if (request.method === 'GET') {
       const resource = getResourceType(url.searchParams.get('resource'));
-      await ensurePermission(accessToken, resource === 'members' ? 'manage_members' : 'manage_loans');
       const search = url.searchParams.get('search')?.trim() ?? '';
       const page = parsePage(url.searchParams.get('page'), 1);
       const pageSize = parsePage(url.searchParams.get('pageSize'), 20);
       const status = url.searchParams.get('status')?.trim() ?? '';
+
+      if (resource === 'payment-audit') {
+        await ensurePermission(accessToken, 'access_devmanager');
+        const memberNo = url.searchParams.get('memberNo')?.trim() ?? '';
+        const paidDate = url.searchParams.get('paidDate')?.trim() ?? '';
+        const data = await listPaymentAudit(memberNo, paidDate, page, pageSize);
+        return jsonResponse({ success: true, data });
+      }
+
+      await ensurePermission(accessToken, resource === 'members' ? 'manage_members' : 'manage_loans');
 
       if (resource === 'members') {
         const data = await listMembers(search, page, pageSize, status);
@@ -535,6 +679,9 @@ Deno.serve(async (request) => {
     if (request.method === 'POST') {
       const { resource, ...payload } = await request.json() as Record<string, unknown> & { resource?: ResourceType };
       const resourceType = getResourceType(resource ?? null);
+      if (resourceType === 'payment-audit') {
+        return jsonResponse({ success: false, message: 'resource ไม่รองรับการสร้างข้อมูล' }, 400);
+      }
       await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
 
       if (resourceType === 'members') {
@@ -549,6 +696,9 @@ Deno.serve(async (request) => {
     if (request.method === 'PUT') {
       const { resource, ...payload } = await request.json() as Record<string, unknown> & { resource?: ResourceType };
       const resourceType = getResourceType(resource ?? null);
+      if (resourceType === 'payment-audit') {
+        return jsonResponse({ success: false, message: 'resource ไม่รองรับการแก้ไขข้อมูล' }, 400);
+      }
       await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
 
       if (resourceType === 'members') {
@@ -568,6 +718,9 @@ Deno.serve(async (request) => {
       };
 
       const resourceType = getResourceType(resource ?? null);
+      if (resourceType === 'payment-audit') {
+        return jsonResponse({ success: false, message: 'resource ไม่รองรับการลบข้อมูล' }, 400);
+      }
       const currentUser = await ensurePermission(accessToken, resourceType === 'members' ? 'manage_members' : 'manage_loans');
 
       if (resourceType === 'members') {

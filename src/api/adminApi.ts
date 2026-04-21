@@ -4,6 +4,7 @@ import type {
   AppSettings,
   ApprovalStatus,
   ImportResult,
+  LoanPaymentAuditData,
   LoanRegistryRecord,
   MemberRegistryRecord,
   PaginationMeta,
@@ -186,6 +187,35 @@ export async function deleteLoanRecord(token: string, contractNo: string) {
       method: 'DELETE',
       body: JSON.stringify({ resource: 'loans', contract_no: contractNo }),
     },
+    token,
+  );
+}
+
+export async function fetchLoanPaymentAudit(
+  token: string,
+  options: { memberNo?: string; paidDate?: string; page?: number; pageSize?: number } = {},
+) {
+  const query = new URLSearchParams({ resource: 'payment-audit' });
+
+  if (options.memberNo?.trim()) {
+    query.set('memberNo', options.memberNo.trim());
+  }
+
+  if (options.paidDate?.trim()) {
+    query.set('paidDate', options.paidDate.trim());
+  }
+
+  if (options.page) {
+    query.set('page', String(options.page));
+  }
+
+  if (options.pageSize) {
+    query.set('pageSize', String(options.pageSize));
+  }
+
+  return apiRequest<{ success: boolean; data: LoanPaymentAuditData }>(
+    `admin-records?${query.toString()}`,
+    { method: 'GET' },
     token,
   );
 }
