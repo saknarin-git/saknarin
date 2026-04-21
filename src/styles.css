@@ -1215,6 +1215,11 @@ textarea {
   background: #f7fff8;
 }
 
+.loan-contract-card {
+  width: 100%;
+  text-align: left;
+}
+
 .loan-contract-meta {
   display: flex;
   flex-wrap: wrap;
