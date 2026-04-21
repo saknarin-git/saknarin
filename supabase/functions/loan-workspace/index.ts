@@ -173,7 +173,7 @@ function buildApplicableWorkingDates(
         return true;
       }
 
-      return entry.month > contractDate.getMonth() + 1;
+      return entry.dateValue >= contractDate;
     })
     .sort((left, right) => left.date.localeCompare(right.date));
 }
