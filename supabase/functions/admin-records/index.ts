@@ -78,6 +78,24 @@ function parsePaidDate(value: unknown) {
   return trimmed;
 }
 
+function normalizeDateOnly(value: unknown) {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  const isoMatch = trimmed.match(/^(\d{4}-\d{2}-\d{2})[T\s]/);
+  if (isoMatch) {
+    return isoMatch[1];
+  }
+
+  return parseContractDate(trimmed);
+}
+
 function createPagination(total: number, page: number, pageSize: number) {
   return {
     total,
@@ -177,7 +195,8 @@ function buildApplicableWorkingDates(
 ) {
   const paidDate = new Date(`${paidDateText}T00:00:00`);
   const paymentYear = paidDate.getFullYear();
-  const contractDate = contractDateText ? new Date(`${contractDateText}T00:00:00`) : null;
+  const normalizedContractDateText = normalizeDateOnly(contractDateText);
+  const contractDate = normalizedContractDateText ? new Date(`${normalizedContractDateText}T00:00:00`) : null;
 
   return workingDates
     .filter((entry) => entry.date)
@@ -339,9 +358,13 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
     const normalizedRows = (contractResult.data ?? [])
       .filter((contract) => {
         const contractNo = String(contract.contract_no ?? '').trim();
-        const contractDate = contract.contract_date ? String(contract.contract_date) : null;
+        const contractDate = normalizeDateOnly(contract.contract_date);
         const outstandingAmount = Number(contract.outstanding_amount ?? 0);
-        return Boolean(contractDate) && contractDate < paidDateText && (outstandingAmount > 0 || paymentsByContract.has(contractNo));
+        if (!contractDate) {
+          return false;
+        }
+
+        return contractDate < paidDateText && (outstandingAmount > 0 || paymentsByContract.has(contractNo));
       })
       .map((contract) => {
         const contractNo = String(contract.contract_no ?? '');
@@ -444,7 +467,7 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
   const normalizedRows = contractRows
     .map((contract, index) => {
       const openingBalance = Number(contract.outstanding_amount ?? 0);
-      const applicableWorkingDates = buildApplicableWorkingDates(calendar.working_dates, contract.contract_date ? String(contract.contract_date) : null, paidDateText);
+      const applicableWorkingDates = buildApplicableWorkingDates(calendar.working_dates, normalizeDateOnly(contract.contract_date), paidDateText);
       const totalDueInstallments = Math.max(0, applicableWorkingDates.length - (installmentsPaidMap.get(String(contract.contract_no ?? '')) ?? 0));
       const overdueInstallments = Math.max(0, totalDueInstallments - 1);
 
