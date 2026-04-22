@@ -52,18 +52,18 @@ interface LoanReportPaperSettings {
   font_scale: number;
   table_width_percent: number;
   table_height_percent: number;
-  column_settings: Record<string, { width_mm: number; height_px: number }>;
+  column_settings: Record<string, { width_mm: number; height_mm: number }>;
 }
 
-const defaultLoanReportColumnSettings: Record<string, { width_mm: number; height_px: number }> = {
-  sequence: { width_mm: 9, height_px: 32 },
-  member_no: { width_mm: 14, height_px: 32 },
-  member_name: { width_mm: 45, height_px: 32 },
-  opening_balance: { width_mm: 22, height_px: 32 },
-  principal_paid: { width_mm: 20, height_px: 32 },
-  interest_paid: { width_mm: 20, height_px: 32 },
-  remaining_balance: { width_mm: 22, height_px: 32 },
-  note: { width_mm: 32, height_px: 32 },
+const defaultLoanReportColumnSettings: Record<string, { width_mm: number; height_mm: number }> = {
+  sequence: { width_mm: 9, height_mm: 8.5 },
+  member_no: { width_mm: 14, height_mm: 8.5 },
+  member_name: { width_mm: 45, height_mm: 8.5 },
+  opening_balance: { width_mm: 22, height_mm: 8.5 },
+  principal_paid: { width_mm: 20, height_mm: 8.5 },
+  interest_paid: { width_mm: 20, height_mm: 8.5 },
+  remaining_balance: { width_mm: 22, height_mm: 8.5 },
+  note: { width_mm: 32, height_mm: 8.5 },
 };
 
 const defaultLoanReportPaperSettings: LoanReportPaperSettings = {
@@ -98,14 +98,15 @@ function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettin
   const rawColumnSettings = source.column_settings && typeof source.column_settings === 'object'
     ? source.column_settings as Record<string, unknown>
     : {};
-  const columnSettings = Object.keys(defaultLoanReportColumnSettings).reduce<Record<string, { width_mm: number; height_px: number }>>((map, key) => {
+  const columnSettings = Object.keys(defaultLoanReportColumnSettings).reduce<Record<string, { width_mm: number; height_mm: number }>>((map, key) => {
     const columnSource = rawColumnSettings[key] && typeof rawColumnSettings[key] === 'object'
       ? rawColumnSettings[key] as Record<string, unknown>
       : {};
     const widthMm = columnSource.width_mm ?? (columnSource.width_px !== undefined ? pxToMm(columnSource.width_px) : defaultLoanReportColumnSettings[key].width_mm);
+    const heightMm = columnSource.height_mm ?? (columnSource.height_px !== undefined ? pxToMm(columnSource.height_px) : defaultLoanReportColumnSettings[key].height_mm);
     map[key] = {
       width_mm: clampNumber(widthMm, defaultLoanReportColumnSettings[key].width_mm, 6, 70),
-      height_px: clampNumber(columnSource.height_px, defaultLoanReportColumnSettings[key].height_px, 24, 72),
+      height_mm: clampNumber(heightMm, defaultLoanReportColumnSettings[key].height_mm, 6, 20),
     };
     return map;
   }, { ...defaultLoanReportColumnSettings });

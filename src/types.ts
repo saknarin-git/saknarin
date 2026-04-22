@@ -325,7 +325,7 @@ export type LoanReportColumnKey =
 
 export interface LoanReportColumnSize {
   width_mm: number;
-  height_px: number;
+  height_mm: number;
 }
 
 export type LoanReportColumnSettings = Record<LoanReportColumnKey, LoanReportColumnSize>;

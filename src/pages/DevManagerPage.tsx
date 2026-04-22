@@ -34,15 +34,30 @@ const reportColumnLabels: Record<LoanReportColumnKey, string> = {
   note: 'หมายเหตุ',
 };
 
+const a4PortraitColumnSettings: LoanReportColumnSettings = {
+  sequence: { width_mm: 9, height_mm: 8.5 },
+  member_no: { width_mm: 14, height_mm: 8.5 },
+  member_name: { width_mm: 45, height_mm: 8.5 },
+  opening_balance: { width_mm: 22, height_mm: 8.5 },
+  principal_paid: { width_mm: 20, height_mm: 8.5 },
+  interest_paid: { width_mm: 20, height_mm: 8.5 },
+  remaining_balance: { width_mm: 22, height_mm: 8.5 },
+  note: { width_mm: 32, height_mm: 8.5 },
+};
+
+const a4LandscapeColumnSettings: LoanReportColumnSettings = {
+  sequence: { width_mm: 10, height_mm: 8.5 },
+  member_no: { width_mm: 16, height_mm: 8.5 },
+  member_name: { width_mm: 66, height_mm: 8.5 },
+  opening_balance: { width_mm: 28, height_mm: 8.5 },
+  principal_paid: { width_mm: 24, height_mm: 8.5 },
+  interest_paid: { width_mm: 24, height_mm: 8.5 },
+  remaining_balance: { width_mm: 28, height_mm: 8.5 },
+  note: { width_mm: 48, height_mm: 8.5 },
+};
+
 const defaultReportColumnSettings: LoanReportColumnSettings = {
-  sequence: { width_mm: 9, height_px: 32 },
-  member_no: { width_mm: 14, height_px: 32 },
-  member_name: { width_mm: 45, height_px: 32 },
-  opening_balance: { width_mm: 22, height_px: 32 },
-  principal_paid: { width_mm: 20, height_px: 32 },
-  interest_paid: { width_mm: 20, height_px: 32 },
-  remaining_balance: { width_mm: 22, height_px: 32 },
-  note: { width_mm: 32, height_px: 32 },
+  ...a4PortraitColumnSettings,
 };
 
 const defaultSettings: AppSettings = {
@@ -115,17 +130,22 @@ function pxToMm(value: number) {
   return Math.round((value * 0.2645833333) * 10) / 10;
 }
 
+function getPaperPresetColumnSettings(orientation: LoanReportPaperSettings['orientation']): LoanReportColumnSettings {
+  return orientation === 'landscape' ? a4LandscapeColumnSettings : a4PortraitColumnSettings;
+}
+
 function normalizeReportColumnSettings(value: unknown): LoanReportColumnSettings {
   const source = value && typeof value === 'object'
-    ? value as Partial<Record<LoanReportColumnKey, Partial<{ width_mm: number; width_px: number; height_px: number }>>>
+    ? value as Partial<Record<LoanReportColumnKey, Partial<{ width_mm: number; width_px: number; height_mm: number; height_px: number }>>>
     : {};
 
   return reportColumnOrder.reduce<LoanReportColumnSettings>((settingsMap, columnKey) => {
     const parsedColumn = source[columnKey];
     const fallbackWidthMm = parsedColumn?.width_mm ?? (parsedColumn?.width_px !== undefined ? pxToMm(Number(parsedColumn.width_px)) : defaultReportColumnSettings[columnKey].width_mm);
+    const fallbackHeightMm = parsedColumn?.height_mm ?? (parsedColumn?.height_px !== undefined ? pxToMm(Number(parsedColumn.height_px)) : defaultReportColumnSettings[columnKey].height_mm);
     settingsMap[columnKey] = {
       width_mm: clampPaperSetting(fallbackWidthMm, defaultReportColumnSettings[columnKey].width_mm, 6, 70),
-      height_px: clampPaperSetting(parsedColumn?.height_px, defaultReportColumnSettings[columnKey].height_px, 24, 72),
+      height_mm: clampPaperSetting(fallbackHeightMm, defaultReportColumnSettings[columnKey].height_mm, 6, 20),
     };
     return settingsMap;
   }, { ...defaultReportColumnSettings });
@@ -482,7 +502,23 @@ export function DevManagerPage() {
     });
   }
 
-  function updatePaperColumnSetting(columnKey: LoanReportColumnKey, dimension: 'width_mm' | 'height_px', value: number) {
+  function applyPaperPreset(orientation: LoanReportPaperSettings['orientation']) {
+    setPaperSettings((current) => {
+      const nextSettings = normalizePaperSettings({
+        ...current,
+        paper_size: 'a4',
+        orientation,
+        column_settings: getPaperPresetColumnSettings(orientation),
+      });
+      setSettings((currentSettings) => ({
+        ...currentSettings,
+        loan_report_paper_settings: nextSettings,
+      }));
+      return nextSettings;
+    });
+  }
+
+  function updatePaperColumnSetting(columnKey: LoanReportColumnKey, dimension: 'width_mm' | 'height_mm', value: number) {
     setPaperSettings((current) => {
       const nextSettings = normalizePaperSettings({
         ...current,
@@ -549,7 +585,8 @@ export function DevManagerPage() {
     };
     const columnSettings = paperSettings.column_settings;
     const getColumnCellStyle = (columnKey: LoanReportColumnKey) => ({
-      minHeight: `${columnSettings[columnKey].height_px}px`,
+      minHeight: `${columnSettings[columnKey].height_mm}mm`,
+      height: `${columnSettings[columnKey].height_mm}mm`,
     });
     const pageStyle = {
       width: `${paperDimensions.width}mm`,
@@ -1518,6 +1555,14 @@ export function DevManagerPage() {
 
             <div className="report-paper-settings-card">
               <h4>ตั้งค่าหน้ากระดาษ</h4>
+              <div className="report-paper-preset-row">
+                <button type="button" className="btn btn-secondary" onClick={() => applyPaperPreset('portrait')}>
+                  Preset A4 แนวตั้ง
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => applyPaperPreset('landscape')}>
+                  Preset A4 แนวนอน
+                </button>
+              </div>
               <div className="field">
                 <span>ขนาดกระดาษ</span>
                 <select value={paperSettings.paper_size} onChange={(event) => updatePaperSetting('paper_size', event.target.value as LoanReportPaperSettings['paper_size'])}>
@@ -1570,13 +1615,14 @@ export function DevManagerPage() {
                         />
                       </label>
                       <label className="field report-column-setting-field">
-                        <span>สูง (px)</span>
+                        <span>สูง (มม.)</span>
                         <input
                           type="number"
-                          min={24}
-                          max={72}
-                          value={paperSettings.column_settings[columnKey].height_px}
-                          onChange={(event) => updatePaperColumnSetting(columnKey, 'height_px', Number(event.target.value) || defaultReportColumnSettings[columnKey].height_px)}
+                          min={6}
+                          max={20}
+                          step={0.5}
+                          value={paperSettings.column_settings[columnKey].height_mm}
+                          onChange={(event) => updatePaperColumnSetting(columnKey, 'height_mm', Number(event.target.value) || defaultReportColumnSettings[columnKey].height_mm)}
                         />
                       </label>
                     </div>

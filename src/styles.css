@@ -1034,6 +1034,12 @@ textarea {
   margin: 0;
 }
 
+.report-paper-preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
 .report-column-settings-block {
   display: grid;
   gap: 10px;
