@@ -390,7 +390,6 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
         const sameDayPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') === paidDateText);
         const priorPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') < paidDateText);
         const latestPriorPayment = priorPayments[priorPayments.length - 1] ?? null;
-        const principalPaid = roundMoney(sameDayPayments.reduce((sum, payment) => sum + Number(payment.principal_paid ?? 0), 0));
         const interestPaid = roundMoney(sameDayPayments.reduce((sum, payment) => sum + Number(payment.interest_paid ?? 0), 0));
         const normalPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
           String(payment.payment_mode ?? 'normal') === 'settlement'
@@ -428,7 +427,7 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
           member_name: buildMemberFullName(contract.title, contract.first_name, contract.last_name),
           contract_no: contractNo,
           opening_balance: openingBalance,
-          principal_paid: principalPaid,
+          principal_paid: normalPrincipalAmount,
           interest_paid: interestPaid,
           remaining_balance: remainingBalance,
           normal_principal_amount: normalPrincipalAmount,
