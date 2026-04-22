@@ -1185,15 +1185,15 @@ textarea {
 }
 
 .loan-report-table td:nth-child(1) {
-  width: 44px;
+  width: 34px;
 }
 
 .loan-report-table td:nth-child(2) {
-  width: 90px;
+  width: 54px;
 }
 
 .loan-report-table td:nth-child(3) {
-  width: 190px;
+  width: 236px;
 }
 
 .loan-report-table td:nth-child(8) {
