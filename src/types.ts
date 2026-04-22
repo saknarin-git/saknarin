@@ -326,6 +326,7 @@ export type LoanReportColumnKey =
 export interface LoanReportColumnSize {
   width_mm: number;
   height_mm: number;
+  header_text: string;
 }
 
 export type LoanReportColumnSettings = Record<LoanReportColumnKey, LoanReportColumnSize>;
@@ -333,7 +334,10 @@ export type LoanReportColumnSettings = Record<LoanReportColumnKey, LoanReportCol
 export interface LoanReportPaperSettings {
   paper_size: 'a4' | 'letter';
   orientation: 'portrait' | 'landscape';
-  margin_mm: number;
+  margin_top_mm: number;
+  margin_right_mm: number;
+  margin_bottom_mm: number;
+  margin_left_mm: number;
   font_scale: number;
   table_width_percent: number;
   table_height_percent: number;

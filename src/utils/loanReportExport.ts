@@ -29,9 +29,12 @@ export async function exportLoanReportToPdf(
 
   const pageWidth = pdf.internal.pageSize.getWidth();
   const pageHeight = pdf.internal.pageSize.getHeight();
-  const margin = Math.max(6, paperSettings.margin_mm);
-  const maxWidth = pageWidth - (margin * 2);
-  const maxHeight = pageHeight - (margin * 2);
+  const marginTop = Math.max(6, paperSettings.margin_top_mm);
+  const marginRight = Math.max(6, paperSettings.margin_right_mm);
+  const marginBottom = Math.max(6, paperSettings.margin_bottom_mm);
+  const marginLeft = Math.max(6, paperSettings.margin_left_mm);
+  const maxWidth = pageWidth - marginLeft - marginRight;
+  const maxHeight = pageHeight - marginTop - marginBottom;
 
   for (let index = 0; index < pageElements.length; index += 1) {
     const pageElement = pageElements[index];
@@ -50,7 +53,7 @@ export async function exportLoanReportToPdf(
       pdf.addPage(paperSettings.paper_size, paperSettings.orientation);
     }
 
-    pdf.addImage(imageData, 'PNG', margin, margin, renderWidth, renderHeight, undefined, 'FAST');
+    pdf.addImage(imageData, 'PNG', marginLeft, marginTop, renderWidth, renderHeight, undefined, 'FAST');
   }
 
   pdf.save(fileName);

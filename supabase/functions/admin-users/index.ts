@@ -48,28 +48,34 @@ interface ExistingLoanPaymentMatchRow {
 interface LoanReportPaperSettings {
   paper_size: 'a4' | 'letter';
   orientation: 'portrait' | 'landscape';
-  margin_mm: number;
+  margin_top_mm: number;
+  margin_right_mm: number;
+  margin_bottom_mm: number;
+  margin_left_mm: number;
   font_scale: number;
   table_width_percent: number;
   table_height_percent: number;
-  column_settings: Record<string, { width_mm: number; height_mm: number }>;
+  column_settings: Record<string, { width_mm: number; height_mm: number; header_text: string }>;
 }
 
-const defaultLoanReportColumnSettings: Record<string, { width_mm: number; height_mm: number }> = {
-  sequence: { width_mm: 9, height_mm: 8.5 },
-  member_no: { width_mm: 14, height_mm: 8.5 },
-  member_name: { width_mm: 45, height_mm: 8.5 },
-  opening_balance: { width_mm: 22, height_mm: 8.5 },
-  principal_paid: { width_mm: 20, height_mm: 8.5 },
-  interest_paid: { width_mm: 20, height_mm: 8.5 },
-  remaining_balance: { width_mm: 22, height_mm: 8.5 },
-  note: { width_mm: 32, height_mm: 8.5 },
+const defaultLoanReportColumnSettings: Record<string, { width_mm: number; height_mm: number; header_text: string }> = {
+  sequence: { width_mm: 9, height_mm: 8.5, header_text: 'ที่' },
+  member_no: { width_mm: 14, height_mm: 8.5, header_text: 'เลขสมาชิก' },
+  member_name: { width_mm: 45, height_mm: 8.5, header_text: 'ชื่อ - สกุล' },
+  opening_balance: { width_mm: 22, height_mm: 8.5, header_text: 'หนี้ยกมา' },
+  principal_paid: { width_mm: 20, height_mm: 8.5, header_text: 'ชำระต้น' },
+  interest_paid: { width_mm: 20, height_mm: 8.5, header_text: 'ชำระดอกเบี้ย' },
+  remaining_balance: { width_mm: 22, height_mm: 8.5, header_text: 'คงเหลือ' },
+  note: { width_mm: 32, height_mm: 8.5, header_text: 'หมายเหตุ' },
 };
 
 const defaultLoanReportPaperSettings: LoanReportPaperSettings = {
   paper_size: 'a4',
   orientation: 'portrait',
-  margin_mm: 10,
+  margin_top_mm: 10,
+  margin_right_mm: 10,
+  margin_bottom_mm: 10,
+  margin_left_mm: 10,
   font_scale: 1,
   table_width_percent: 100,
   table_height_percent: 100,
@@ -95,10 +101,11 @@ function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettin
   }
 
   const source = value as Record<string, unknown>;
+  const legacyMargin = clampNumber(source.margin_mm, defaultLoanReportPaperSettings.margin_top_mm, 6, 25);
   const rawColumnSettings = source.column_settings && typeof source.column_settings === 'object'
     ? source.column_settings as Record<string, unknown>
     : {};
-  const columnSettings = Object.keys(defaultLoanReportColumnSettings).reduce<Record<string, { width_mm: number; height_mm: number }>>((map, key) => {
+  const columnSettings = Object.keys(defaultLoanReportColumnSettings).reduce<Record<string, { width_mm: number; height_mm: number; header_text: string }>>((map, key) => {
     const columnSource = rawColumnSettings[key] && typeof rawColumnSettings[key] === 'object'
       ? rawColumnSettings[key] as Record<string, unknown>
       : {};
@@ -107,6 +114,9 @@ function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettin
     map[key] = {
       width_mm: clampNumber(widthMm, defaultLoanReportColumnSettings[key].width_mm, 6, 70),
       height_mm: clampNumber(heightMm, defaultLoanReportColumnSettings[key].height_mm, 6, 20),
+      header_text: typeof columnSource.header_text === 'string' && columnSource.header_text.trim()
+        ? columnSource.header_text.trim()
+        : defaultLoanReportColumnSettings[key].header_text,
     };
     return map;
   }, { ...defaultLoanReportColumnSettings });
@@ -114,7 +124,10 @@ function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettin
   return {
     paper_size: source.paper_size === 'letter' ? 'letter' : 'a4',
     orientation: source.orientation === 'landscape' ? 'landscape' : 'portrait',
-    margin_mm: clampNumber(source.margin_mm, defaultLoanReportPaperSettings.margin_mm, 6, 25),
+    margin_top_mm: clampNumber(source.margin_top_mm, legacyMargin, 6, 25),
+    margin_right_mm: clampNumber(source.margin_right_mm, legacyMargin, 6, 25),
+    margin_bottom_mm: clampNumber(source.margin_bottom_mm, legacyMargin, 6, 25),
+    margin_left_mm: clampNumber(source.margin_left_mm, legacyMargin, 6, 25),
     font_scale: clampNumber(source.font_scale, defaultLoanReportPaperSettings.font_scale, 0.85, 1.15),
     table_width_percent: clampNumber(source.table_width_percent, defaultLoanReportPaperSettings.table_width_percent, 70, 100),
     table_height_percent: clampNumber(source.table_height_percent, defaultLoanReportPaperSettings.table_height_percent, 70, 100),

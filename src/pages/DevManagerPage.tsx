@@ -35,25 +35,25 @@ const reportColumnLabels: Record<LoanReportColumnKey, string> = {
 };
 
 const a4PortraitColumnSettings: LoanReportColumnSettings = {
-  sequence: { width_mm: 9, height_mm: 8.5 },
-  member_no: { width_mm: 14, height_mm: 8.5 },
-  member_name: { width_mm: 45, height_mm: 8.5 },
-  opening_balance: { width_mm: 22, height_mm: 8.5 },
-  principal_paid: { width_mm: 20, height_mm: 8.5 },
-  interest_paid: { width_mm: 20, height_mm: 8.5 },
-  remaining_balance: { width_mm: 22, height_mm: 8.5 },
-  note: { width_mm: 32, height_mm: 8.5 },
+  sequence: { width_mm: 9, height_mm: 8.5, header_text: reportColumnLabels.sequence },
+  member_no: { width_mm: 14, height_mm: 8.5, header_text: reportColumnLabels.member_no },
+  member_name: { width_mm: 45, height_mm: 8.5, header_text: reportColumnLabels.member_name },
+  opening_balance: { width_mm: 22, height_mm: 8.5, header_text: reportColumnLabels.opening_balance },
+  principal_paid: { width_mm: 20, height_mm: 8.5, header_text: reportColumnLabels.principal_paid },
+  interest_paid: { width_mm: 20, height_mm: 8.5, header_text: reportColumnLabels.interest_paid },
+  remaining_balance: { width_mm: 22, height_mm: 8.5, header_text: reportColumnLabels.remaining_balance },
+  note: { width_mm: 32, height_mm: 8.5, header_text: reportColumnLabels.note },
 };
 
 const a4LandscapeColumnSettings: LoanReportColumnSettings = {
-  sequence: { width_mm: 10, height_mm: 8.5 },
-  member_no: { width_mm: 16, height_mm: 8.5 },
-  member_name: { width_mm: 66, height_mm: 8.5 },
-  opening_balance: { width_mm: 28, height_mm: 8.5 },
-  principal_paid: { width_mm: 24, height_mm: 8.5 },
-  interest_paid: { width_mm: 24, height_mm: 8.5 },
-  remaining_balance: { width_mm: 28, height_mm: 8.5 },
-  note: { width_mm: 48, height_mm: 8.5 },
+  sequence: { width_mm: 10, height_mm: 8.5, header_text: reportColumnLabels.sequence },
+  member_no: { width_mm: 16, height_mm: 8.5, header_text: reportColumnLabels.member_no },
+  member_name: { width_mm: 66, height_mm: 8.5, header_text: reportColumnLabels.member_name },
+  opening_balance: { width_mm: 28, height_mm: 8.5, header_text: reportColumnLabels.opening_balance },
+  principal_paid: { width_mm: 24, height_mm: 8.5, header_text: reportColumnLabels.principal_paid },
+  interest_paid: { width_mm: 24, height_mm: 8.5, header_text: reportColumnLabels.interest_paid },
+  remaining_balance: { width_mm: 28, height_mm: 8.5, header_text: reportColumnLabels.remaining_balance },
+  note: { width_mm: 48, height_mm: 8.5, header_text: reportColumnLabels.note },
 };
 
 const defaultReportColumnSettings: LoanReportColumnSettings = {
@@ -68,7 +68,10 @@ const defaultSettings: AppSettings = {
   loan_report_paper_settings: {
     paper_size: 'a4',
     orientation: 'portrait',
-    margin_mm: 10,
+    margin_top_mm: 10,
+    margin_right_mm: 10,
+    margin_bottom_mm: 10,
+    margin_left_mm: 10,
     font_scale: 1,
     table_width_percent: 100,
     table_height_percent: 100,
@@ -110,7 +113,10 @@ const reportTypeLabels: Record<LoanReportType, string> = {
 const defaultPaperSettings: LoanReportPaperSettings = {
   paper_size: 'a4',
   orientation: 'portrait',
-  margin_mm: 10,
+  margin_top_mm: 10,
+  margin_right_mm: 10,
+  margin_bottom_mm: 10,
+  margin_left_mm: 10,
   font_scale: 1,
   table_width_percent: 100,
   table_height_percent: 100,
@@ -136,7 +142,7 @@ function getPaperPresetColumnSettings(orientation: LoanReportPaperSettings['orie
 
 function normalizeReportColumnSettings(value: unknown): LoanReportColumnSettings {
   const source = value && typeof value === 'object'
-    ? value as Partial<Record<LoanReportColumnKey, Partial<{ width_mm: number; width_px: number; height_mm: number; height_px: number }>>>
+    ? value as Partial<Record<LoanReportColumnKey, Partial<{ width_mm: number; width_px: number; height_mm: number; height_px: number; header_text: string }>>>
     : {};
 
   return reportColumnOrder.reduce<LoanReportColumnSettings>((settingsMap, columnKey) => {
@@ -146,6 +152,9 @@ function normalizeReportColumnSettings(value: unknown): LoanReportColumnSettings
     settingsMap[columnKey] = {
       width_mm: clampPaperSetting(fallbackWidthMm, defaultReportColumnSettings[columnKey].width_mm, 6, 70),
       height_mm: clampPaperSetting(fallbackHeightMm, defaultReportColumnSettings[columnKey].height_mm, 6, 20),
+      header_text: typeof parsedColumn?.header_text === 'string' && parsedColumn.header_text.trim()
+        ? parsedColumn.header_text.trim()
+        : defaultReportColumnSettings[columnKey].header_text,
     };
     return settingsMap;
   }, { ...defaultReportColumnSettings });
@@ -157,10 +166,14 @@ function normalizePaperSettings(value: unknown): LoanReportPaperSettings {
   }
 
   const parsed = value as Partial<LoanReportPaperSettings>;
+  const legacyMargin = clampPaperSetting((parsed as Partial<{ margin_mm: number }>).margin_mm, defaultPaperSettings.margin_top_mm, 6, 25);
   return {
     paper_size: parsed.paper_size === 'letter' ? 'letter' : 'a4',
     orientation: parsed.orientation === 'landscape' ? 'landscape' : 'portrait',
-    margin_mm: clampPaperSetting(parsed.margin_mm, defaultPaperSettings.margin_mm, 6, 25),
+    margin_top_mm: clampPaperSetting(parsed.margin_top_mm, legacyMargin, 6, 25),
+    margin_right_mm: clampPaperSetting(parsed.margin_right_mm, legacyMargin, 6, 25),
+    margin_bottom_mm: clampPaperSetting(parsed.margin_bottom_mm, legacyMargin, 6, 25),
+    margin_left_mm: clampPaperSetting(parsed.margin_left_mm, legacyMargin, 6, 25),
     font_scale: clampPaperSetting(parsed.font_scale, defaultPaperSettings.font_scale, 0.85, 1.15),
     table_width_percent: clampPaperSetting(parsed.table_width_percent, defaultPaperSettings.table_width_percent, 70, 100),
     table_height_percent: clampPaperSetting(parsed.table_height_percent, defaultPaperSettings.table_height_percent, 70, 100),
@@ -213,6 +226,13 @@ function formatMoney(value: number) {
   return new Intl.NumberFormat('th-TH', {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
+  }).format(value);
+}
+
+function formatReportMoney(value: number) {
+  return new Intl.NumberFormat('th-TH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(value);
 }
 
@@ -487,7 +507,7 @@ export function DevManagerPage() {
       .join('\n');
 
     const paperSizeText = paperSettings.paper_size === 'letter' ? 'letter' : 'A4';
-    printWindow.document.write(`<!doctype html><html><head><title>${reportTypeLabels[reportData.report_type]}</title>${copiedStyles}<style>@page { size: ${paperSizeText} ${paperSettings.orientation}; margin: ${paperSettings.margin_mm}mm; } body { background: white; } .page-shell, .hero, .app-header { display:none !important; } .loan-report-preview-shell { margin: 0; padding: 0; } .loan-report-preview { gap: 0; } .loan-report-print-page { box-shadow: none !important; margin: 0 auto 8mm; break-after: page; page-break-after: always; } .loan-report-print-page:last-child { break-after: auto; page-break-after: auto; }</style></head><body>${reportPreviewRef.current.innerHTML}<script>window.onload = () => { window.print(); };</script></body></html>`);
+    printWindow.document.write(`<!doctype html><html><head><title>${reportTypeLabels[reportData.report_type]}</title>${copiedStyles}<style>@page { size: ${paperSizeText} ${paperSettings.orientation}; margin: ${paperSettings.margin_top_mm}mm ${paperSettings.margin_right_mm}mm ${paperSettings.margin_bottom_mm}mm ${paperSettings.margin_left_mm}mm; } body { background: white; } .page-shell, .hero, .app-header { display:none !important; } .loan-report-preview-shell { margin: 0; padding: 0; } .loan-report-preview { gap: 0; } .loan-report-print-page { box-shadow: none !important; margin: 0 auto 8mm; break-after: page; page-break-after: always; } .loan-report-print-page:last-child { break-after: auto; page-break-after: auto; }</style></head><body>${reportPreviewRef.current.innerHTML}<script>window.onload = () => { window.print(); };</script></body></html>`);
     printWindow.document.close();
   }
 
@@ -504,11 +524,18 @@ export function DevManagerPage() {
 
   function applyPaperPreset(orientation: LoanReportPaperSettings['orientation']) {
     setPaperSettings((current) => {
+      const presetColumnSettings = getPaperPresetColumnSettings(orientation);
       const nextSettings = normalizePaperSettings({
         ...current,
         paper_size: 'a4',
         orientation,
-        column_settings: getPaperPresetColumnSettings(orientation),
+        column_settings: reportColumnOrder.reduce<LoanReportColumnSettings>((map, columnKey) => {
+          map[columnKey] = {
+            ...presetColumnSettings[columnKey],
+            header_text: current.column_settings[columnKey].header_text,
+          };
+          return map;
+        }, { ...presetColumnSettings }),
       });
       setSettings((currentSettings) => ({
         ...currentSettings,
@@ -527,6 +554,26 @@ export function DevManagerPage() {
           [columnKey]: {
             ...current.column_settings[columnKey],
             [dimension]: value,
+          },
+        },
+      });
+      setSettings((currentSettings) => ({
+        ...currentSettings,
+        loan_report_paper_settings: nextSettings,
+      }));
+      return nextSettings;
+    });
+  }
+
+  function updatePaperColumnHeader(columnKey: LoanReportColumnKey, value: string) {
+    setPaperSettings((current) => {
+      const nextSettings = normalizePaperSettings({
+        ...current,
+        column_settings: {
+          ...current.column_settings,
+          [columnKey]: {
+            ...current.column_settings[columnKey],
+            header_text: value,
           },
         },
       });
@@ -570,15 +617,15 @@ export function DevManagerPage() {
 
     return report.rows
       .filter((row) => row.normal_principal_amount > 0 && row.settlement_amount > 0)
-      .map((row) => `${row.member_no} ${row.member_name} ชำระต้น ${formatMoney(row.normal_principal_amount)} บาท กลบหนี้ ${formatMoney(row.settlement_amount)} บาท`);
+      .map((row) => `${row.member_no} ${row.member_name} ชำระต้น ${formatReportMoney(row.normal_principal_amount)} บาท กลบหนี้ ${formatReportMoney(row.settlement_amount)} บาท`);
   }
 
   function renderReportPreview(report: LoanReportData) {
     const pages = chunkReportRows(report.rows, report.rows_per_page);
     const paperDimensions = getPaperDimensions(paperSettings);
     const coverPageNotes = getCoverPageNotes(report);
-    const usablePageWidth = Math.max(120, paperDimensions.width - (paperSettings.margin_mm * 2));
-    const usablePageHeight = Math.max(160, paperDimensions.height - (paperSettings.margin_mm * 2));
+    const usablePageWidth = Math.max(120, paperDimensions.width - paperSettings.margin_left_mm - paperSettings.margin_right_mm);
+    const usablePageHeight = Math.max(160, paperDimensions.height - paperSettings.margin_top_mm - paperSettings.margin_bottom_mm);
     const tableShellStyle = {
       width: `${usablePageWidth * (paperSettings.table_width_percent / 100)}mm`,
       minHeight: `${Math.max(120, (usablePageHeight - 24) * (paperSettings.table_height_percent / 100))}mm`,
@@ -591,7 +638,10 @@ export function DevManagerPage() {
     const pageStyle = {
       width: `${paperDimensions.width}mm`,
       minHeight: `${paperDimensions.height}mm`,
-      padding: `${paperSettings.margin_mm}mm`,
+      paddingTop: `${paperSettings.margin_top_mm}mm`,
+      paddingRight: `${paperSettings.margin_right_mm}mm`,
+      paddingBottom: `${paperSettings.margin_bottom_mm}mm`,
+      paddingLeft: `${paperSettings.margin_left_mm}mm`,
       fontSize: `${paperSettings.font_scale}rem`,
     };
 
@@ -612,7 +662,7 @@ export function DevManagerPage() {
               {getReportSummaryItems(report).map((item) => (
                 <div key={item.label} className="loan-report-summary-card">
                   <span>{item.label}</span>
-                  <strong>{formatMoney(item.value)}</strong>
+                    <strong>{formatReportMoney(item.value)}</strong>
                 </div>
               ))}
             </div>
@@ -651,14 +701,14 @@ export function DevManagerPage() {
                     </colgroup>
                     <thead>
                       <tr>
-                        <th style={getColumnCellStyle('sequence')}>ที่</th>
-                        <th style={getColumnCellStyle('member_no')}>เลขสมาชิก</th>
-                        <th style={getColumnCellStyle('member_name')}>ชื่อ - สกุล</th>
-                        <th style={getColumnCellStyle('opening_balance')}>หนี้ยกมา</th>
-                        <th style={getColumnCellStyle('principal_paid')}>ชำระต้น</th>
-                        <th style={getColumnCellStyle('interest_paid')}>ชำระดอกเบี้ย</th>
-                        <th style={getColumnCellStyle('remaining_balance')}>คงเหลือ</th>
-                        <th style={getColumnCellStyle('note')}>หมายเหตุ</th>
+                        <th style={getColumnCellStyle('sequence')}>{columnSettings.sequence.header_text}</th>
+                        <th style={getColumnCellStyle('member_no')}>{columnSettings.member_no.header_text}</th>
+                        <th style={getColumnCellStyle('member_name')}>{columnSettings.member_name.header_text}</th>
+                        <th style={getColumnCellStyle('opening_balance')}>{columnSettings.opening_balance.header_text}</th>
+                        <th style={getColumnCellStyle('principal_paid')}>{columnSettings.principal_paid.header_text}</th>
+                        <th style={getColumnCellStyle('interest_paid')}>{columnSettings.interest_paid.header_text}</th>
+                        <th style={getColumnCellStyle('remaining_balance')}>{columnSettings.remaining_balance.header_text}</th>
+                        <th style={getColumnCellStyle('note')}>{columnSettings.note.header_text}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -669,10 +719,10 @@ export function DevManagerPage() {
                           <td style={getColumnCellStyle('member_name')}>
                             {row.member_name && <strong className="loan-report-name">{row.member_name}</strong>}
                           </td>
-                          <td style={getColumnCellStyle('opening_balance')}>{row.sequence > 0 ? formatMoney(row.opening_balance) : ''}</td>
-                          <td style={getColumnCellStyle('principal_paid')}>{row.sequence > 0 && report.report_type === 'working-day' && row.principal_paid > 0 ? formatMoney(row.principal_paid) : ''}</td>
-                          <td style={getColumnCellStyle('interest_paid')}>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatMoney(row.interest_paid) : ''}</td>
-                          <td style={getColumnCellStyle('remaining_balance')}>{row.sequence > 0 && report.report_type === 'working-day' ? formatMoney(row.remaining_balance) : ''}</td>
+                          <td style={getColumnCellStyle('opening_balance')}>{row.sequence > 0 ? formatReportMoney(row.opening_balance) : ''}</td>
+                          <td style={getColumnCellStyle('principal_paid')}>{row.sequence > 0 && report.report_type === 'working-day' && row.principal_paid > 0 ? formatReportMoney(row.principal_paid) : ''}</td>
+                          <td style={getColumnCellStyle('interest_paid')}>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatReportMoney(row.interest_paid) : ''}</td>
+                          <td style={getColumnCellStyle('remaining_balance')}>{row.sequence > 0 && report.report_type === 'working-day' ? formatReportMoney(row.remaining_balance) : ''}</td>
                           <td style={getColumnCellStyle('note')} className={row.sequence > 0 && row.is_overdue ? 'loan-report-note-danger' : ''}>
                             {row.sequence > 0 ? row.note ?? '' : ''}
                           </td>
@@ -682,10 +732,10 @@ export function DevManagerPage() {
                     <tfoot>
                       <tr>
                         <td colSpan={3}><strong>รวมหน้า</strong></td>
-                        <td><strong>{formatMoney(totals.opening_balance)}</strong></td>
-                        <td><strong>{report.report_type === 'working-day' && totals.principal_paid > 0 ? formatMoney(totals.principal_paid) : ''}</strong></td>
-                        <td><strong>{report.report_type === 'working-day' && totals.interest_paid > 0 ? formatMoney(totals.interest_paid) : ''}</strong></td>
-                        <td><strong>{report.report_type === 'working-day' && totals.closing_balance > 0 ? formatMoney(totals.closing_balance) : ''}</strong></td>
+                        <td><strong>{formatReportMoney(totals.opening_balance)}</strong></td>
+                        <td><strong>{report.report_type === 'working-day' && totals.principal_paid > 0 ? formatReportMoney(totals.principal_paid) : ''}</strong></td>
+                        <td><strong>{report.report_type === 'working-day' && totals.interest_paid > 0 ? formatReportMoney(totals.interest_paid) : ''}</strong></td>
+                        <td><strong>{report.report_type === 'working-day' && totals.closing_balance > 0 ? formatReportMoney(totals.closing_balance) : ''}</strong></td>
                         <td />
                       </tr>
                     </tfoot>
@@ -1578,8 +1628,20 @@ export function DevManagerPage() {
                 </select>
               </div>
               <div className="field">
-                <span>ระยะขอบ (มม.)</span>
-                <input type="number" min={6} max={25} value={paperSettings.margin_mm} onChange={(event) => updatePaperSetting('margin_mm', Number(event.target.value) || defaultPaperSettings.margin_mm)} />
+                <span>ระยะขอบบน (มม.)</span>
+                <input type="number" min={6} max={25} value={paperSettings.margin_top_mm} onChange={(event) => updatePaperSetting('margin_top_mm', Number(event.target.value) || defaultPaperSettings.margin_top_mm)} />
+              </div>
+              <div className="field">
+                <span>ระยะขอบขวา (มม.)</span>
+                <input type="number" min={6} max={25} value={paperSettings.margin_right_mm} onChange={(event) => updatePaperSetting('margin_right_mm', Number(event.target.value) || defaultPaperSettings.margin_right_mm)} />
+              </div>
+              <div className="field">
+                <span>ระยะขอบล่าง (มม.)</span>
+                <input type="number" min={6} max={25} value={paperSettings.margin_bottom_mm} onChange={(event) => updatePaperSetting('margin_bottom_mm', Number(event.target.value) || defaultPaperSettings.margin_bottom_mm)} />
+              </div>
+              <div className="field">
+                <span>ระยะขอบซ้าย (มม.)</span>
+                <input type="number" min={6} max={25} value={paperSettings.margin_left_mm} onChange={(event) => updatePaperSetting('margin_left_mm', Number(event.target.value) || defaultPaperSettings.margin_left_mm)} />
               </div>
               <div className="field">
                 <span>ขนาดตัวอักษร</span>
@@ -1603,6 +1665,15 @@ export function DevManagerPage() {
                   {reportColumnOrder.map((columnKey) => (
                     <div key={columnKey} className="report-column-settings-item">
                       <div className="report-column-settings-title">{reportColumnLabels[columnKey]}</div>
+                      <label className="field report-column-setting-field">
+                        <span>ชื่อหัวคอลัมน์</span>
+                        <input
+                          type="text"
+                          maxLength={40}
+                          value={paperSettings.column_settings[columnKey].header_text}
+                          onChange={(event) => updatePaperColumnHeader(columnKey, event.target.value)}
+                        />
+                      </label>
                       <label className="field report-column-setting-field">
                         <span>กว้าง (มม.)</span>
                         <input
