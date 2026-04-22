@@ -419,11 +419,16 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
             ? sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
             : sum
         ), 0));
-        const latestPayment = contractPayments[contractPayments.length - 1] ?? null;
         const currentOutstandingAmount = roundMoney(Number(contract.outstanding_amount ?? 0));
         const hasPayment = contractPayments.length > 0;
+        const dayEndRemainingBalance = hasPayment
+          ? roundMoney(contractPayments.reduce((lowestBalance, payment) => {
+              const remainingBalance = Number(payment.remaining_balance ?? 0);
+              return Math.min(lowestBalance, remainingBalance);
+            }, Number.POSITIVE_INFINITY))
+          : null;
         const remainingBalance = hasPayment
-          ? roundMoney(Number(latestPayment?.remaining_balance ?? 0))
+          ? roundMoney(dayEndRemainingBalance ?? 0)
           : roundMoney(currentOutstandingAmount + (futurePrincipalPaidByContract.get(contractNo) ?? 0));
 
         return {
