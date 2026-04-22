@@ -83,6 +83,7 @@ export interface AppSettings {
   notice: string;
   allow_registration: boolean;
   role_permissions: RolePermissionsMatrix;
+  loan_report_paper_settings: LoanReportPaperSettings;
 }
 
 export interface ImportStats {
@@ -317,6 +318,8 @@ export interface LoanReportPaperSettings {
   orientation: 'portrait' | 'landscape';
   margin_mm: number;
   font_scale: number;
+  table_width_percent: number;
+  table_height_percent: number;
 }
 
 export interface PaginationMeta {

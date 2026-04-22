@@ -1128,6 +1128,13 @@ textarea {
   gap: 10px;
 }
 
+.loan-report-table-shell {
+  margin: 0 auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+}
+
 .loan-report-page-header {
   display: flex;
   justify-content: space-between;
@@ -1142,6 +1149,7 @@ textarea {
 
 .loan-report-table {
   width: 100%;
+  height: 100%;
   border-collapse: collapse;
   table-layout: fixed;
 }

@@ -12,6 +12,14 @@ const defaultSettings: AppSettings = {
   notice: '',
   allow_registration: true,
   role_permissions: defaultRolePermissions,
+  loan_report_paper_settings: {
+    paper_size: 'a4',
+    orientation: 'portrait',
+    margin_mm: 10,
+    font_scale: 1,
+    table_width_percent: 100,
+    table_height_percent: 100,
+  },
 };
 
 const defaultOverview: AdminOverview = {

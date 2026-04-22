@@ -8,6 +8,49 @@ interface LoanOverviewRow {
   status: string | null;
 }
 
+interface LoanReportPaperSettings {
+  paper_size: 'a4' | 'letter';
+  orientation: 'portrait' | 'landscape';
+  margin_mm: number;
+  font_scale: number;
+  table_width_percent: number;
+  table_height_percent: number;
+}
+
+const defaultLoanReportPaperSettings: LoanReportPaperSettings = {
+  paper_size: 'a4',
+  orientation: 'portrait',
+  margin_mm: 10,
+  font_scale: 1,
+  table_width_percent: 100,
+  table_height_percent: 100,
+};
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, numericValue));
+}
+
+function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettings {
+  if (!value || typeof value !== 'object') {
+    return defaultLoanReportPaperSettings;
+  }
+
+  const source = value as Record<string, unknown>;
+  return {
+    paper_size: source.paper_size === 'letter' ? 'letter' : 'a4',
+    orientation: source.orientation === 'landscape' ? 'landscape' : 'portrait',
+    margin_mm: clampNumber(source.margin_mm, defaultLoanReportPaperSettings.margin_mm, 6, 25),
+    font_scale: clampNumber(source.font_scale, defaultLoanReportPaperSettings.font_scale, 0.85, 1.15),
+    table_width_percent: clampNumber(source.table_width_percent, defaultLoanReportPaperSettings.table_width_percent, 70, 100),
+    table_height_percent: clampNumber(source.table_height_percent, defaultLoanReportPaperSettings.table_height_percent, 70, 100),
+  };
+}
+
 Deno.serve(async (request) => {
   const preflight = handleOptions(request);
   if (preflight) return preflight;
@@ -33,7 +76,7 @@ Deno.serve(async (request) => {
       { count: loanContractsCount, error: loanContractsCountError },
       { data: loanRows, error: loanRowsError },
     ] = await Promise.all([
-      adminClient.from('app_settings').select('group_name, notice, allow_registration, role_permissions').eq('id', 1).single(),
+      adminClient.from('app_settings').select('group_name, notice, allow_registration, role_permissions, loan_report_paper_settings').eq('id', 1).single(),
       adminClient.from('members').select('*', { count: 'exact', head: true }),
       adminClient.from('members').select('*', { count: 'exact', head: true }).eq('active', true),
       adminClient.from('app_users').select('*', { count: 'exact', head: true }),
@@ -82,6 +125,7 @@ Deno.serve(async (request) => {
     }).length;
     const permissions = await getPermissionsForRole(profile.role);
     const rolePermissions = normalizeRolePermissions(settings?.role_permissions ?? getDefaultRolePermissions());
+    const loanReportPaperSettings = normalizeLoanReportPaperSettings(settings?.loan_report_paper_settings);
 
     return jsonResponse({
       success: true,
@@ -91,6 +135,7 @@ Deno.serve(async (request) => {
           notice: settings.notice,
           allow_registration: settings.allow_registration,
           role_permissions: rolePermissions,
+          loan_report_paper_settings: loanReportPaperSettings,
         },
         overview: {
           members_count: membersCount ?? 0,

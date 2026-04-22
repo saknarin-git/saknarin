@@ -45,6 +45,49 @@ interface ExistingLoanPaymentMatchRow {
   interest_paid: number | null;
 }
 
+interface LoanReportPaperSettings {
+  paper_size: 'a4' | 'letter';
+  orientation: 'portrait' | 'landscape';
+  margin_mm: number;
+  font_scale: number;
+  table_width_percent: number;
+  table_height_percent: number;
+}
+
+const defaultLoanReportPaperSettings: LoanReportPaperSettings = {
+  paper_size: 'a4',
+  orientation: 'portrait',
+  margin_mm: 10,
+  font_scale: 1,
+  table_width_percent: 100,
+  table_height_percent: 100,
+};
+
+function clampNumber(value: unknown, fallback: number, min: number, max: number) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, numericValue));
+}
+
+function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettings {
+  if (!value || typeof value !== 'object') {
+    return defaultLoanReportPaperSettings;
+  }
+
+  const source = value as Record<string, unknown>;
+  return {
+    paper_size: source.paper_size === 'letter' ? 'letter' : 'a4',
+    orientation: source.orientation === 'landscape' ? 'landscape' : 'portrait',
+    margin_mm: clampNumber(source.margin_mm, defaultLoanReportPaperSettings.margin_mm, 6, 25),
+    font_scale: clampNumber(source.font_scale, defaultLoanReportPaperSettings.font_scale, 0.85, 1.15),
+    table_width_percent: clampNumber(source.table_width_percent, defaultLoanReportPaperSettings.table_width_percent, 70, 100),
+    table_height_percent: clampNumber(source.table_height_percent, defaultLoanReportPaperSettings.table_height_percent, 70, 100),
+  };
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof Error && error.message.trim()) {
     return error.message;
@@ -820,7 +863,7 @@ Deno.serve(async (request) => {
           .from('app_users')
           .select('id, member_no, title, first_name, last_name, username, role, approval_status')
           .order('created_at', { ascending: false }),
-        adminClient.from('app_settings').select('group_name, notice, allow_registration, role_permissions').eq('id', 1).single(),
+        adminClient.from('app_settings').select('group_name, notice, allow_registration, role_permissions, loan_report_paper_settings').eq('id', 1).single(),
         adminClient.from('members').select('*', { count: 'exact', head: true }),
         adminClient.from('members').select('*', { count: 'exact', head: true }).eq('active', true),
         adminClient.from('loan_contracts').select('*', { count: 'exact', head: true }),
@@ -848,6 +891,7 @@ Deno.serve(async (request) => {
       }).length;
 
       const rolePermissions = normalizeRolePermissions(settings?.role_permissions ?? getDefaultRolePermissions());
+      const loanReportPaperSettings = normalizeLoanReportPaperSettings(settings?.loan_report_paper_settings);
 
       return jsonResponse({
         success: true,
@@ -858,6 +902,7 @@ Deno.serve(async (request) => {
             notice: settings.notice,
             allow_registration: settings.allow_registration,
             role_permissions: rolePermissions,
+            loan_report_paper_settings: loanReportPaperSettings,
           },
           import_stats: {
             members_count: membersCount ?? 0,
@@ -962,7 +1007,18 @@ Deno.serve(async (request) => {
       const settings = await request.json();
 
       const isDevAdmin = userProfile.role === 'dev_admin';
+      const { data: currentSettings, error: currentSettingsError } = await adminClient
+        .from('app_settings')
+        .select('loan_report_paper_settings')
+        .eq('id', 1)
+        .single();
+
+      if (currentSettingsError) {
+        throw currentSettingsError;
+      }
+
       const nextRolePermissions = normalizeRolePermissions(settings.role_permissions ?? getDefaultRolePermissions());
+      const nextLoanReportPaperSettings = normalizeLoanReportPaperSettings(settings.loan_report_paper_settings ?? currentSettings?.loan_report_paper_settings);
 
       if (!nextRolePermissions.dev_admin.access_devmanager) {
         return jsonResponse({ success: false, message: 'ระดับ 1 ต้องมีสิทธิ์เข้าหน้า DevManager เสมอ เพื่อไม่ให้ระบบล็อกผู้ดูแลออกจากหน้าตั้งค่า' }, 400);
@@ -980,6 +1036,7 @@ Deno.serve(async (request) => {
         notice: settings.notice,
         allow_registration: settings.allow_registration,
         role_permissions: isDevAdmin ? nextRolePermissions : currentMatrix,
+        loan_report_paper_settings: nextLoanReportPaperSettings,
         updated_at: new Date().toISOString(),
       });
 

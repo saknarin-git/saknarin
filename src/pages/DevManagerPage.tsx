@@ -17,6 +17,14 @@ const defaultSettings: AppSettings = {
   notice: 'ผู้ดูแลระบบสามารถตั้งค่าข้อความประกาศได้จากหน้านี้',
   allow_registration: true,
   role_permissions: defaultRolePermissions,
+  loan_report_paper_settings: {
+    paper_size: 'a4',
+    orientation: 'portrait',
+    margin_mm: 10,
+    font_scale: 1,
+    table_width_percent: 100,
+    table_height_percent: 100,
+  },
 };
 
 const defaultOverview: AdminOverview = {
@@ -55,7 +63,34 @@ const defaultPaperSettings: LoanReportPaperSettings = {
   orientation: 'portrait',
   margin_mm: 10,
   font_scale: 1,
+  table_width_percent: 100,
+  table_height_percent: 100,
 };
+
+function clampPaperSetting(value: unknown, fallback: number, min: number, max: number) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, numericValue));
+}
+
+function normalizePaperSettings(value: unknown): LoanReportPaperSettings {
+  if (!value || typeof value !== 'object') {
+    return defaultPaperSettings;
+  }
+
+  const parsed = value as Partial<LoanReportPaperSettings>;
+  return {
+    paper_size: parsed.paper_size === 'letter' ? 'letter' : 'a4',
+    orientation: parsed.orientation === 'landscape' ? 'landscape' : 'portrait',
+    margin_mm: clampPaperSetting(parsed.margin_mm, defaultPaperSettings.margin_mm, 6, 25),
+    font_scale: clampPaperSetting(parsed.font_scale, defaultPaperSettings.font_scale, 0.85, 1.15),
+    table_width_percent: clampPaperSetting(parsed.table_width_percent, defaultPaperSettings.table_width_percent, 70, 100),
+    table_height_percent: clampPaperSetting(parsed.table_height_percent, defaultPaperSettings.table_height_percent, 70, 100),
+  };
+}
 
 const sectionItems: Array<{ key: DevManagerSection; label: string; description: string; path: string }> = [
   { key: 'home', label: 'เมนูหลัก DevManager', description: 'รวมเมนูดูแลระบบทั้งหมดไว้ในหน้าเดียว', path: '/devmanager' },
@@ -167,13 +202,7 @@ function loadPaperSettings(): LoanReportPaperSettings {
       return defaultPaperSettings;
     }
 
-    const parsed = JSON.parse(raw) as Partial<LoanReportPaperSettings>;
-    return {
-      paper_size: parsed.paper_size === 'letter' ? 'letter' : 'a4',
-      orientation: parsed.orientation === 'landscape' ? 'landscape' : 'portrait',
-      margin_mm: typeof parsed.margin_mm === 'number' ? parsed.margin_mm : defaultPaperSettings.margin_mm,
-      font_scale: typeof parsed.font_scale === 'number' ? parsed.font_scale : defaultPaperSettings.font_scale,
-    };
+    return normalizePaperSettings(JSON.parse(raw));
   } catch {
     return defaultPaperSettings;
   }
@@ -214,6 +243,7 @@ export function DevManagerPage() {
   const [importingLoans, setImportingLoans] = useState(false);
   const [importingTransactions, setImportingTransactions] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [savingPaperSettings, setSavingPaperSettings] = useState(false);
   const [loadingPaymentAudit, setLoadingPaymentAudit] = useState(false);
   const [paymentAuditRecords, setPaymentAuditRecords] = useState<LoanPaymentAuditRecord[]>([]);
   const [paymentAuditPagination, setPaymentAuditPagination] = useState<PaginationMeta>(defaultPagination);
@@ -265,7 +295,7 @@ export function DevManagerPage() {
     window.localStorage.setItem('loan-report-paper-settings', JSON.stringify(paperSettings));
   }, [paperSettings]);
 
-  async function loadPanel() {
+  async function loadPanel(successMessage = 'โหลดข้อมูลล่าสุดเรียบร้อย') {
     if (!session) {
       return;
     }
@@ -276,9 +306,10 @@ export function DevManagerPage() {
       const result = await fetchAdminPanel(session.access_token);
       setUsers(result.data.users);
       setSettings(result.data.settings);
+      setPaperSettings(normalizePaperSettings(result.data.settings.loan_report_paper_settings));
       setImportStats(result.data.import_stats);
       setOverview(result.data.overview);
-      setMessage('โหลดข้อมูลล่าสุดเรียบร้อย');
+      setMessage(successMessage);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'โหลดข้อมูลไม่สำเร็จ');
     } finally {
@@ -385,7 +416,14 @@ export function DevManagerPage() {
   }
 
   function updatePaperSetting<Key extends keyof LoanReportPaperSettings>(key: Key, value: LoanReportPaperSettings[Key]) {
-    setPaperSettings((current) => ({ ...current, [key]: value }));
+    setPaperSettings((current) => {
+      const nextSettings = normalizePaperSettings({ ...current, [key]: value });
+      setSettings((currentSettings) => ({
+        ...currentSettings,
+        loan_report_paper_settings: nextSettings,
+      }));
+      return nextSettings;
+    });
   }
 
   function getReportSummaryItems(report: LoanReportData) {
@@ -427,6 +465,12 @@ export function DevManagerPage() {
     const pages = chunkReportRows(report.rows, report.rows_per_page);
     const paperDimensions = getPaperDimensions(paperSettings);
     const coverPageNotes = getCoverPageNotes(report);
+    const usablePageWidth = Math.max(120, paperDimensions.width - (paperSettings.margin_mm * 2));
+    const usablePageHeight = Math.max(160, paperDimensions.height - (paperSettings.margin_mm * 2));
+    const tableShellStyle = {
+      width: `${usablePageWidth * (paperSettings.table_width_percent / 100)}mm`,
+      minHeight: `${Math.max(120, (usablePageHeight - 24) * (paperSettings.table_height_percent / 100))}mm`,
+    };
     const pageStyle = {
       width: `${paperDimensions.width}mm`,
       minHeight: `${paperDimensions.height}mm`,
@@ -481,48 +525,50 @@ export function DevManagerPage() {
                   <div className="loan-report-page-counter">หน้า {pageIndex + 2}</div>
                 </div>
 
-                <table className="loan-report-table">
-                  <thead>
-                    <tr>
-                      <th>ที่</th>
-                      <th>เลขสมาชิก</th>
-                      <th>ชื่อ - สกุล</th>
-                      <th>หนี้ยกมา</th>
-                      <th>ชำระต้น</th>
-                      <th>ชำระดอกเบี้ย</th>
-                      <th>คงเหลือ</th>
-                      <th>หมายเหตุ</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {paddedRows.map((row, rowIndex) => (
-                      <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={row.sequence > 0 && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : ''}>
-                        <td>{row.sequence || ''}</td>
-                        <td>{row.member_no}</td>
-                        <td>
-                          {row.member_name && <strong className="loan-report-name">{row.member_name}</strong>}
-                        </td>
-                        <td>{row.sequence > 0 ? formatMoney(row.opening_balance) : ''}</td>
-                        <td>{row.sequence > 0 && report.report_type === 'working-day' && row.principal_paid > 0 ? formatMoney(row.principal_paid) : ''}</td>
-                        <td>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatMoney(row.interest_paid) : ''}</td>
-                        <td>{row.sequence > 0 && report.report_type === 'working-day' ? formatMoney(row.remaining_balance) : ''}</td>
-                        <td className={row.sequence > 0 && row.is_overdue ? 'loan-report-note-danger' : ''}>
-                          {row.sequence > 0 ? row.note ?? '' : ''}
-                        </td>
+                <div className="loan-report-table-shell" style={tableShellStyle}>
+                  <table className="loan-report-table">
+                    <thead>
+                      <tr>
+                        <th>ที่</th>
+                        <th>เลขสมาชิก</th>
+                        <th>ชื่อ - สกุล</th>
+                        <th>หนี้ยกมา</th>
+                        <th>ชำระต้น</th>
+                        <th>ชำระดอกเบี้ย</th>
+                        <th>คงเหลือ</th>
+                        <th>หมายเหตุ</th>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan={3}><strong>รวมหน้า</strong></td>
-                      <td><strong>{formatMoney(totals.opening_balance)}</strong></td>
-                      <td><strong>{report.report_type === 'working-day' && totals.principal_paid > 0 ? formatMoney(totals.principal_paid) : ''}</strong></td>
-                      <td><strong>{report.report_type === 'working-day' && totals.interest_paid > 0 ? formatMoney(totals.interest_paid) : ''}</strong></td>
-                      <td><strong>{report.report_type === 'working-day' && totals.closing_balance > 0 ? formatMoney(totals.closing_balance) : ''}</strong></td>
-                      <td />
-                    </tr>
-                  </tfoot>
-                </table>
+                    </thead>
+                    <tbody>
+                      {paddedRows.map((row, rowIndex) => (
+                        <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={row.sequence > 0 && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : ''}>
+                          <td>{row.sequence || ''}</td>
+                          <td>{row.member_no}</td>
+                          <td>
+                            {row.member_name && <strong className="loan-report-name">{row.member_name}</strong>}
+                          </td>
+                          <td>{row.sequence > 0 ? formatMoney(row.opening_balance) : ''}</td>
+                          <td>{row.sequence > 0 && report.report_type === 'working-day' && row.principal_paid > 0 ? formatMoney(row.principal_paid) : ''}</td>
+                          <td>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatMoney(row.interest_paid) : ''}</td>
+                          <td>{row.sequence > 0 && report.report_type === 'working-day' ? formatMoney(row.remaining_balance) : ''}</td>
+                          <td className={row.sequence > 0 && row.is_overdue ? 'loan-report-note-danger' : ''}>
+                            {row.sequence > 0 ? row.note ?? '' : ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr>
+                        <td colSpan={3}><strong>รวมหน้า</strong></td>
+                        <td><strong>{formatMoney(totals.opening_balance)}</strong></td>
+                        <td><strong>{report.report_type === 'working-day' && totals.principal_paid > 0 ? formatMoney(totals.principal_paid) : ''}</strong></td>
+                        <td><strong>{report.report_type === 'working-day' && totals.interest_paid > 0 ? formatMoney(totals.interest_paid) : ''}</strong></td>
+                        <td><strong>{report.report_type === 'working-day' && totals.closing_balance > 0 ? formatMoney(totals.closing_balance) : ''}</strong></td>
+                        <td />
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </section>
             );
           })}
@@ -542,8 +588,7 @@ export function DevManagerPage() {
 
     try {
       const result = await updateUserStatus(session.access_token, userId, approvalStatus, role);
-      setMessage(result.message);
-      await loadPanel();
+      await loadPanel(result.message);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'อัปเดตสถานะไม่สำเร็จ');
     }
@@ -559,11 +604,12 @@ export function DevManagerPage() {
       const result = await updateSettings(
         session.access_token,
         isDevAdmin
-          ? settings
+          ? { ...settings, loan_report_paper_settings: paperSettings }
           : {
               group_name: settings.group_name,
               notice: settings.notice,
               allow_registration: settings.allow_registration,
+              loan_report_paper_settings: paperSettings,
             } as AppSettings,
       );
 
@@ -576,12 +622,42 @@ export function DevManagerPage() {
         permissions: nextPermissions,
       });
 
-      setMessage(result.message);
-      await loadPanel();
+      await loadPanel(result.message);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'บันทึกการตั้งค่าไม่สำเร็จ');
     } finally {
       setSavingSettings(false);
+    }
+  }
+
+  async function handleSavePaperSettings() {
+    if (!session) {
+      return;
+    }
+
+    try {
+      setSavingPaperSettings(true);
+      const result = await updateSettings(
+        session.access_token,
+        isDevAdmin
+          ? { ...settings, loan_report_paper_settings: paperSettings }
+          : {
+              group_name: settings.group_name,
+              notice: settings.notice,
+              allow_registration: settings.allow_registration,
+              loan_report_paper_settings: paperSettings,
+            } as AppSettings,
+      );
+      setSettings((current) => ({
+        ...current,
+        loan_report_paper_settings: paperSettings,
+      }));
+      setMessage(result.message);
+      await loadPanel();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'บันทึกค่าหน้ากระดาษไม่สำเร็จ');
+    } finally {
+      setSavingPaperSettings(false);
     }
   }
 
@@ -1382,6 +1458,19 @@ export function DevManagerPage() {
                   <option value="1">ปกติ</option>
                   <option value="1.08">ใหญ่</option>
                 </select>
+              </div>
+              <div className="field">
+                <span>ความกว้างตาราง (%)</span>
+                <input type="number" min={70} max={100} value={paperSettings.table_width_percent} onChange={(event) => updatePaperSetting('table_width_percent', Number(event.target.value) || defaultPaperSettings.table_width_percent)} />
+              </div>
+              <div className="field">
+                <span>ความสูงตาราง (%)</span>
+                <input type="number" min={70} max={100} value={paperSettings.table_height_percent} onChange={(event) => updatePaperSetting('table_height_percent', Number(event.target.value) || defaultPaperSettings.table_height_percent)} />
+              </div>
+              <div className="actions compact-actions">
+                <button type="button" className="btn btn-primary" onClick={() => void handleSavePaperSettings()} disabled={savingPaperSettings}>
+                  {savingPaperSettings ? 'กำลังบันทึกค่าหน้ากระดาษ...' : 'บันทึกค่าหน้ากระดาษ'}
+                </button>
               </div>
             </div>
           </div>
