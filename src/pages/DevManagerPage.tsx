@@ -621,16 +621,26 @@ export function DevManagerPage() {
   }
 
   function renderReportPreview(report: LoanReportData) {
-    const pages = chunkReportRows(report.rows, report.rows_per_page);
     const paperDimensions = getPaperDimensions(paperSettings);
     const coverPageNotes = getCoverPageNotes(report);
     const usablePageWidth = Math.max(120, paperDimensions.width - paperSettings.margin_left_mm - paperSettings.margin_right_mm);
     const usablePageHeight = Math.max(160, paperDimensions.height - paperSettings.margin_top_mm - paperSettings.margin_bottom_mm);
-    const tableShellStyle = {
-      width: `${usablePageWidth * (paperSettings.table_width_percent / 100)}mm`,
-      minHeight: `${Math.max(120, (usablePageHeight - 24) * (paperSettings.table_height_percent / 100))}mm`,
-    };
+    const tableShellWidth = `${usablePageWidth * (paperSettings.table_width_percent / 100)}mm`;
     const columnSettings = paperSettings.column_settings;
+    const rowHeightMm = Math.max(...reportColumnOrder.map((columnKey) => columnSettings[columnKey].height_mm));
+    const detailHeaderReserveMm = 16;
+    const detailPageGapReserveMm = 4;
+    const tableHeaderFooterReserveMm = rowHeightMm * 2;
+    const detailTableAvailableHeight = Math.max(70, usablePageHeight - detailHeaderReserveMm - detailPageGapReserveMm);
+    const detailTableHeightMm = Math.max(70, detailTableAvailableHeight * (paperSettings.table_height_percent / 100));
+    const detailBodyAvailableHeightMm = Math.max(rowHeightMm, detailTableHeightMm - tableHeaderFooterReserveMm);
+    const detailRowsPerPage = Math.max(1, Math.min(report.rows_per_page, Math.floor(detailBodyAvailableHeightMm / rowHeightMm)));
+    const pages = chunkReportRows(report.rows, detailRowsPerPage);
+    const detailTableShellStyle = {
+      width: tableShellWidth,
+      minHeight: `${detailTableHeightMm}mm`,
+      maxHeight: `${detailTableHeightMm}mm`,
+    };
     const getColumnCellStyle = (columnKey: LoanReportColumnKey) => ({
       minHeight: `${columnSettings[columnKey].height_mm}mm`,
       height: `${columnSettings[columnKey].height_mm}mm`,
@@ -642,7 +652,8 @@ export function DevManagerPage() {
       paddingRight: `${paperSettings.margin_right_mm}mm`,
       paddingBottom: `${paperSettings.margin_bottom_mm}mm`,
       paddingLeft: `${paperSettings.margin_left_mm}mm`,
-      fontSize: `${paperSettings.font_scale}rem`,
+      fontFamily: '"Angsana New", "AngsanaUPC", serif',
+      fontSize: `${14 * paperSettings.font_scale}pt`,
     };
 
     return (
@@ -680,7 +691,7 @@ export function DevManagerPage() {
 
           {pages.map((pageRows, pageIndex) => {
             const totals = getReportPageTotals(report, pageRows);
-            const paddedRows = getPageRows(pageRows, report.rows_per_page);
+            const paddedRows = getPageRows(pageRows, detailRowsPerPage);
 
             return (
               <section key={`${report.report_type}-page-${pageIndex + 1}`} className="loan-report-print-page loan-report-detail-page" style={pageStyle}>
@@ -692,7 +703,7 @@ export function DevManagerPage() {
                   <div className="loan-report-page-counter">หน้า {pageIndex + 2}</div>
                 </div>
 
-                <div className="loan-report-table-shell" style={tableShellStyle}>
+                <div className="loan-report-table-shell" style={detailTableShellStyle}>
                   <table className="loan-report-table">
                     <colgroup>
                       {reportColumnOrder.map((columnKey) => (
