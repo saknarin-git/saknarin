@@ -343,6 +343,33 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
       throw contractResult.error;
     }
 
+    const contractNos = (contractResult.data ?? [])
+      .map((contract) => String(contract.contract_no ?? '').trim())
+      .filter(Boolean);
+
+    const futurePrincipalPaidByContract = new Map<string, number>();
+    if (contractNos.length > 0) {
+      const { data: futurePayments, error: futurePaymentsError } = await adminClient
+        .from('loan_payments')
+        .select('contract_no, principal_paid')
+        .in('contract_no', contractNos)
+        .gt('paid_date', paidDateText);
+
+      if (futurePaymentsError) {
+        throw futurePaymentsError;
+      }
+
+      (futurePayments ?? []).forEach((payment) => {
+        const contractNo = String(payment.contract_no ?? '').trim();
+        if (!contractNo) {
+          return;
+        }
+
+        const currentTotal = futurePrincipalPaidByContract.get(contractNo) ?? 0;
+        futurePrincipalPaidByContract.set(contractNo, roundMoney(currentTotal + Number(payment.principal_paid ?? 0)));
+      });
+    }
+
     const paymentsByContract = new Map<string, typeof paymentRows>();
     paymentRows.forEach((payment) => {
       const contractNo = String(payment.contract_no ?? '').trim();
@@ -359,12 +386,13 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
       .filter((contract) => {
         const contractNo = String(contract.contract_no ?? '').trim();
         const contractDate = normalizeDateOnly(contract.contract_date);
-        const outstandingAmount = Number(contract.outstanding_amount ?? 0);
+        const currentOutstandingAmount = roundMoney(Number(contract.outstanding_amount ?? 0));
+        const closingBalance = roundMoney(currentOutstandingAmount + (futurePrincipalPaidByContract.get(contractNo) ?? 0));
         if (!contractDate) {
           return false;
         }
 
-        return contractDate < paidDateText && (outstandingAmount > 0 || paymentsByContract.has(contractNo));
+        return contractDate < paidDateText && (closingBalance > 0 || paymentsByContract.has(contractNo));
       })
       .map((contract) => {
         const contractNo = String(contract.contract_no ?? '');
@@ -391,7 +419,8 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
             ? sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
             : sum
         ), 0));
-        const remainingBalance = roundMoney(Number(contract.outstanding_amount ?? 0));
+        const currentOutstandingAmount = roundMoney(Number(contract.outstanding_amount ?? 0));
+        const remainingBalance = roundMoney(currentOutstandingAmount + (futurePrincipalPaidByContract.get(contractNo) ?? 0));
         const hasPayment = contractPayments.length > 0;
 
         return {
