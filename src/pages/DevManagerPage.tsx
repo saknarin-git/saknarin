@@ -143,6 +143,8 @@ function getPageRows(rows: LoanReportRow[], pageSize: number) {
       principal_paid: 0,
       interest_paid: 0,
       remaining_balance: 0,
+      cash_amount: 0,
+      settlement_amount: 0,
       note: null,
       payment_mode: 'normal',
       overdue_installments: 0,
@@ -399,8 +401,8 @@ export function DevManagerPage() {
   function getReportPageTotals(report: LoanReportData, rows: LoanReportRow[]) {
     return rows.reduce((summary, row) => ({
       opening_balance: summary.opening_balance + row.opening_balance,
-      principal_paid: summary.principal_paid + (report.report_type === 'working-day' && !row.is_settlement ? row.principal_paid : 0),
-      interest_paid: summary.interest_paid + (report.report_type === 'working-day' && !row.is_settlement ? row.interest_paid : 0),
+      principal_paid: summary.principal_paid + (report.report_type === 'working-day' ? row.principal_paid : 0),
+      interest_paid: summary.interest_paid + (report.report_type === 'working-day' ? row.interest_paid : 0),
       closing_balance: summary.closing_balance + (report.report_type === 'working-day' ? row.remaining_balance : 0),
     }), {
       opening_balance: 0,
@@ -425,7 +427,7 @@ export function DevManagerPage() {
         <div className="loan-report-preview">
           <section className="loan-report-print-page loan-report-cover-page" style={pageStyle}>
             <div className="loan-report-cover-block">
-              <div className="eyebrow">Report Preview</div>
+              <div className="eyebrow">เอกสารรายงาน</div>
               <h2>{report.title}</h2>
               <div className="loan-report-cover-meta">
                 <div><strong>{report.group_name}</strong></div>
@@ -462,10 +464,11 @@ export function DevManagerPage() {
                     <tr>
                       <th>ที่</th>
                       <th>เลขสมาชิก</th>
-                      <th>ชื่อ</th>
+                      <th>เลขที่สัญญา</th>
+                      <th>ชื่อ - สกุล</th>
                       <th>หนี้ยกมา</th>
                       <th>ชำระต้น</th>
-                      <th>ดอกเบี้ย</th>
+                      <th>ชำระดอกเบี้ย</th>
                       <th>คงเหลือ</th>
                       <th>หมายเหตุ</th>
                     </tr>
@@ -475,23 +478,23 @@ export function DevManagerPage() {
                       <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={row.sequence > 0 && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : ''}>
                         <td>{row.sequence || ''}</td>
                         <td>{row.member_no}</td>
+                        <td>{row.contract_no}</td>
                         <td>
-                          {row.member_name && <strong>{row.member_name}</strong>}
-                          {row.contract_no && <div className="muted">สัญญา {row.contract_no}</div>}
+                          {row.member_name && <strong className="loan-report-name">{row.member_name}</strong>}
                         </td>
                         <td>{row.sequence > 0 ? formatMoney(row.opening_balance) : ''}</td>
-                        <td>{row.sequence > 0 && report.report_type === 'working-day' && !row.is_settlement ? formatMoney(row.principal_paid) : ''}</td>
-                        <td>{row.sequence > 0 && report.report_type === 'working-day' && !row.is_settlement ? formatMoney(row.interest_paid) : ''}</td>
+                        <td>{row.sequence > 0 && report.report_type === 'working-day' && row.principal_paid > 0 ? formatMoney(row.principal_paid) : ''}</td>
+                        <td>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatMoney(row.interest_paid) : ''}</td>
                         <td>{row.sequence > 0 && report.report_type === 'working-day' ? formatMoney(row.remaining_balance) : ''}</td>
-                        <td className={row.sequence > 0 && (row.is_settlement || row.is_overdue) ? 'loan-report-note-danger' : ''}>
-                          {row.sequence > 0 ? (report.report_type === 'outstanding' ? row.note ?? '' : row.note ?? '') : ''}
+                        <td className={row.sequence > 0 && row.is_overdue ? 'loan-report-note-danger' : ''}>
+                          {row.sequence > 0 ? row.note ?? '' : ''}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={3}><strong>รวมหน้า</strong></td>
+                      <td colSpan={4}><strong>รวมหน้า</strong></td>
                       <td><strong>{formatMoney(totals.opening_balance)}</strong></td>
                       <td><strong>{report.report_type === 'working-day' && totals.principal_paid > 0 ? formatMoney(totals.principal_paid) : ''}</strong></td>
                       <td><strong>{report.report_type === 'working-day' && totals.interest_paid > 0 ? formatMoney(totals.interest_paid) : ''}</strong></td>

@@ -248,6 +248,26 @@ function compareMemberLike(left: string, right: string) {
   return left.localeCompare(right, 'th-TH', { numeric: true, sensitivity: 'base' });
 }
 
+function buildMemberFullName(title: unknown, firstName: unknown, lastName: unknown) {
+  const parts = [String(title ?? '').trim(), String(firstName ?? '').trim(), String(lastName ?? '').trim()].filter(Boolean);
+  return parts.length > 0 ? parts.join(' ') : '-';
+}
+
+function formatReportMoney(value: number) {
+  return new Intl.NumberFormat('th-TH', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(roundMoney(value));
+}
+
+function buildCombinedPaymentNote(cashAmount: number, settlementAmount: number) {
+  if (cashAmount > 0 && settlementAmount > 0) {
+    return `ชำระ ${formatReportMoney(cashAmount)} บาท กลบหนี้ ${formatReportMoney(settlementAmount)} บาท`;
+  }
+
+  return null;
+}
+
 function buildOutstandingNote(overdueInstallments: number) {
   if (overdueInstallments <= 0) {
     return null;
@@ -280,7 +300,7 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
   if (reportType === 'working-day') {
     const { data: payments, error: paymentsError } = await adminClient
       .from('loan_payments')
-      .select('id, contract_no, member_no, payment_mode, paid_date, principal_paid, interest_paid, remaining_balance, note')
+      .select('id, contract_no, member_no, payment_mode, paid_date, principal_paid, interest_paid, remaining_balance, note, created_at')
       .eq('paid_date', paidDateText);
 
     if (paymentsError) {
@@ -288,61 +308,75 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
     }
 
     const paymentRows = payments ?? [];
-    const memberNos = [...new Set(paymentRows.map((item) => String(item.member_no ?? '')).filter(Boolean))];
-    const contractNos = [...new Set(paymentRows.map((item) => String(item.contract_no ?? '')).filter(Boolean))];
-    const [memberResult, contractResult, installmentsBeforeMap] = await Promise.all([
-      memberNos.length > 0
-        ? adminClient.from('members').select('member_no, title, first_name, last_name').in('member_no', memberNos)
-        : Promise.resolve({ data: [], error: null }),
-      contractNos.length > 0
-        ? adminClient.from('loan_contracts').select('contract_no, contract_date').in('contract_no', contractNos)
-        : Promise.resolve({ data: [], error: null }),
-      getInterestInstallmentsPaid(contractNos, paymentYear, paidDateText, false),
+    const [contractResult] = await Promise.all([
+      adminClient
+        .from('loan_contracts')
+        .select('contract_no, member_no, title, first_name, last_name, outstanding_amount, contract_date')
+        .order('member_no', { ascending: true })
+        .order('contract_no', { ascending: true }),
     ]);
 
-    if (memberResult.error || contractResult.error) {
-      throw memberResult.error ?? contractResult.error;
+    if (contractResult.error) {
+      throw contractResult.error;
     }
 
-    const memberNameMap = new Map(
-      (memberResult.data ?? []).map((member) => [
-        String(member.member_no ?? ''),
-        `${String(member.title ?? '')}${String(member.first_name ?? '')} ${String(member.last_name ?? '')}`.trim(),
-      ]),
-    );
-    const contractDateMap = new Map(
-      (contractResult.data ?? []).map((contract) => [String(contract.contract_no ?? ''), contract.contract_date ? String(contract.contract_date) : null]),
-    );
+    const paymentsByContract = new Map<string, typeof paymentRows>();
+    paymentRows.forEach((payment) => {
+      const contractNo = String(payment.contract_no ?? '').trim();
+      if (!contractNo) {
+        return;
+      }
 
-    const normalizedRows = paymentRows
-      .map((payment) => {
-        const contractNo = String(payment.contract_no ?? '');
-        const memberNo = String(payment.member_no ?? '');
-        const principalPaid = Number(payment.principal_paid ?? 0);
-        const interestPaid = Number(payment.interest_paid ?? 0);
-        const remainingBalance = Number(payment.remaining_balance ?? 0);
-        const applicableWorkingDates = buildApplicableWorkingDates(calendar.working_dates, contractDateMap.get(contractNo) ?? null, paidDateText);
-        const dueBeforePayment = Math.max(0, applicableWorkingDates.length - (installmentsBeforeMap.get(contractNo) ?? 0));
-        const overdueInstallments = Math.max(0, dueBeforePayment - 1);
-        const isSettlement = String(payment.payment_mode ?? 'normal') === 'settlement';
-        const noteParts = [
-          overdueInstallments > 0 ? 'ขาดส่ง' : null,
-          isSettlement ? 'กลบหนี้' : null,
-        ].filter(Boolean);
+      const currentRows = paymentsByContract.get(contractNo) ?? [];
+      currentRows.push(payment);
+      paymentsByContract.set(contractNo, currentRows);
+    });
+
+    const normalizedRows = (contractResult.data ?? [])
+      .filter((contract) => {
+        const contractNo = String(contract.contract_no ?? '').trim();
+        const contractDate = contract.contract_date ? String(contract.contract_date) : null;
+        const outstandingAmount = Number(contract.outstanding_amount ?? 0);
+        return Boolean(contractDate) && contractDate < paidDateText && (outstandingAmount > 0 || paymentsByContract.has(contractNo));
+      })
+      .map((contract) => {
+        const contractNo = String(contract.contract_no ?? '');
+        const memberNo = String(contract.member_no ?? '');
+        const contractPayments = [...(paymentsByContract.get(contractNo) ?? [])].sort((left, right) => {
+          const leftCreatedAt = String(left.created_at ?? '');
+          const rightCreatedAt = String(right.created_at ?? '');
+          return leftCreatedAt.localeCompare(rightCreatedAt) || String(left.id ?? '').localeCompare(String(right.id ?? ''));
+        });
+        const principalPaid = roundMoney(contractPayments.reduce((sum, payment) => sum + Number(payment.principal_paid ?? 0), 0));
+        const interestPaid = roundMoney(contractPayments.reduce((sum, payment) => sum + Number(payment.interest_paid ?? 0), 0));
+        const cashAmount = roundMoney(contractPayments.reduce((sum, payment) => (
+          String(payment.payment_mode ?? 'normal') === 'settlement'
+            ? sum
+            : sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
+        ), 0));
+        const settlementAmount = roundMoney(contractPayments.reduce((sum, payment) => (
+          String(payment.payment_mode ?? 'normal') === 'settlement'
+            ? sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
+            : sum
+        ), 0));
+        const remainingBalance = roundMoney(Number(contract.outstanding_amount ?? 0));
+        const hasPayment = contractPayments.length > 0;
 
         return {
           member_no: memberNo,
-          member_name: memberNameMap.get(memberNo) ?? '-',
+          member_name: buildMemberFullName(contract.title, contract.first_name, contract.last_name),
           contract_no: contractNo,
           opening_balance: roundMoney(remainingBalance + principalPaid),
           principal_paid: principalPaid,
           interest_paid: interestPaid,
           remaining_balance: remainingBalance,
-          note: noteParts.length > 0 ? noteParts.join(', ') : (payment.note ? String(payment.note) : null),
-          payment_mode: isSettlement ? 'settlement' : 'normal',
-          overdue_installments: overdueInstallments,
-          is_overdue: overdueInstallments > 0,
-          is_settlement: isSettlement,
+          cash_amount: cashAmount,
+          settlement_amount: settlementAmount,
+          note: hasPayment ? buildCombinedPaymentNote(cashAmount, settlementAmount) : 'ขาดส่ง',
+          payment_mode: settlementAmount > 0 && cashAmount === 0 ? 'settlement' : 'normal',
+          overdue_installments: hasPayment ? 0 : 1,
+          is_overdue: !hasPayment,
+          is_settlement: settlementAmount > 0,
         };
       })
       .sort((left, right) => compareMemberLike(left.member_no, right.member_no) || compareMemberLike(left.contract_no, right.contract_no))
@@ -353,10 +387,10 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
 
     const totals = normalizedRows.reduce((summary, row) => ({
       opening_balance: roundMoney(summary.opening_balance + row.opening_balance),
-      principal_paid: roundMoney(summary.principal_paid + (row.is_settlement ? 0 : row.principal_paid)),
-      interest_paid: roundMoney(summary.interest_paid + (row.is_settlement ? 0 : row.interest_paid)),
-      settlement_amount: roundMoney(summary.settlement_amount + (row.is_settlement ? row.principal_paid + row.interest_paid : 0)),
-      cash_received: roundMoney(summary.cash_received + (row.is_settlement ? 0 : row.principal_paid + row.interest_paid)),
+      principal_paid: roundMoney(summary.principal_paid + row.principal_paid),
+      interest_paid: roundMoney(summary.interest_paid + row.interest_paid),
+      settlement_amount: roundMoney(summary.settlement_amount + row.settlement_amount),
+      cash_received: roundMoney(summary.cash_received + row.cash_amount),
       closing_balance: roundMoney(summary.closing_balance + row.remaining_balance),
     }), {
       opening_balance: 0,
@@ -407,12 +441,14 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
       return {
         sequence: index + 1,
         member_no: String(contract.member_no ?? ''),
-        member_name: `${String(contract.title ?? '')}${String(contract.first_name ?? '')} ${String(contract.last_name ?? '')}`.trim(),
+        member_name: buildMemberFullName(contract.title, contract.first_name, contract.last_name),
         contract_no: String(contract.contract_no ?? ''),
         opening_balance: openingBalance,
         principal_paid: 0,
         interest_paid: 0,
         remaining_balance: openingBalance,
+        cash_amount: 0,
+        settlement_amount: 0,
         note: buildOutstandingNote(overdueInstallments),
         payment_mode: 'normal',
         overdue_installments: overdueInstallments,

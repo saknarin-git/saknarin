@@ -287,6 +287,8 @@ export interface LoanReportRow {
   principal_paid: number;
   interest_paid: number;
   remaining_balance: number;
+  cash_amount: number;
+  settlement_amount: number;
   note: string | null;
   payment_mode: LoanPaymentMode;
   overdue_installments: number;
