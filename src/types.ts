@@ -313,6 +313,23 @@ export interface LoanReportData {
   rows: LoanReportRow[];
 }
 
+export type LoanReportColumnKey =
+  | 'sequence'
+  | 'member_no'
+  | 'member_name'
+  | 'opening_balance'
+  | 'principal_paid'
+  | 'interest_paid'
+  | 'remaining_balance'
+  | 'note';
+
+export interface LoanReportColumnSize {
+  width_mm: number;
+  height_px: number;
+}
+
+export type LoanReportColumnSettings = Record<LoanReportColumnKey, LoanReportColumnSize>;
+
 export interface LoanReportPaperSettings {
   paper_size: 'a4' | 'letter';
   orientation: 'portrait' | 'landscape';
@@ -320,6 +337,7 @@ export interface LoanReportPaperSettings {
   font_scale: number;
   table_width_percent: number;
   table_height_percent: number;
+  column_settings: LoanReportColumnSettings;
 }
 
 export interface PaginationMeta {

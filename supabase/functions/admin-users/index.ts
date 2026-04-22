@@ -52,7 +52,19 @@ interface LoanReportPaperSettings {
   font_scale: number;
   table_width_percent: number;
   table_height_percent: number;
+  column_settings: Record<string, { width_mm: number; height_px: number }>;
 }
+
+const defaultLoanReportColumnSettings: Record<string, { width_mm: number; height_px: number }> = {
+  sequence: { width_mm: 9, height_px: 32 },
+  member_no: { width_mm: 14, height_px: 32 },
+  member_name: { width_mm: 45, height_px: 32 },
+  opening_balance: { width_mm: 22, height_px: 32 },
+  principal_paid: { width_mm: 20, height_px: 32 },
+  interest_paid: { width_mm: 20, height_px: 32 },
+  remaining_balance: { width_mm: 22, height_px: 32 },
+  note: { width_mm: 32, height_px: 32 },
+};
 
 const defaultLoanReportPaperSettings: LoanReportPaperSettings = {
   paper_size: 'a4',
@@ -61,6 +73,7 @@ const defaultLoanReportPaperSettings: LoanReportPaperSettings = {
   font_scale: 1,
   table_width_percent: 100,
   table_height_percent: 100,
+  column_settings: defaultLoanReportColumnSettings,
 };
 
 function clampNumber(value: unknown, fallback: number, min: number, max: number) {
@@ -72,12 +85,31 @@ function clampNumber(value: unknown, fallback: number, min: number, max: number)
   return Math.min(max, Math.max(min, numericValue));
 }
 
+function pxToMm(value: unknown) {
+  return Math.round((Number(value) * 0.2645833333) * 10) / 10;
+}
+
 function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettings {
   if (!value || typeof value !== 'object') {
     return defaultLoanReportPaperSettings;
   }
 
   const source = value as Record<string, unknown>;
+  const rawColumnSettings = source.column_settings && typeof source.column_settings === 'object'
+    ? source.column_settings as Record<string, unknown>
+    : {};
+  const columnSettings = Object.keys(defaultLoanReportColumnSettings).reduce<Record<string, { width_mm: number; height_px: number }>>((map, key) => {
+    const columnSource = rawColumnSettings[key] && typeof rawColumnSettings[key] === 'object'
+      ? rawColumnSettings[key] as Record<string, unknown>
+      : {};
+    const widthMm = columnSource.width_mm ?? (columnSource.width_px !== undefined ? pxToMm(columnSource.width_px) : defaultLoanReportColumnSettings[key].width_mm);
+    map[key] = {
+      width_mm: clampNumber(widthMm, defaultLoanReportColumnSettings[key].width_mm, 6, 70),
+      height_px: clampNumber(columnSource.height_px, defaultLoanReportColumnSettings[key].height_px, 24, 72),
+    };
+    return map;
+  }, { ...defaultLoanReportColumnSettings });
+
   return {
     paper_size: source.paper_size === 'letter' ? 'letter' : 'a4',
     orientation: source.orientation === 'landscape' ? 'landscape' : 'portrait',
@@ -85,6 +117,7 @@ function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettin
     font_scale: clampNumber(source.font_scale, defaultLoanReportPaperSettings.font_scale, 0.85, 1.15),
     table_width_percent: clampNumber(source.table_width_percent, defaultLoanReportPaperSettings.table_width_percent, 70, 100),
     table_height_percent: clampNumber(source.table_height_percent, defaultLoanReportPaperSettings.table_height_percent, 70, 100),
+    column_settings: columnSettings,
   };
 }
 

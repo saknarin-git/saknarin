@@ -9,8 +9,41 @@ import { StatusBadge } from '../components/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
 import { formatDateOnly } from '../utils/dateFormat';
 import { exportLoanReportToPdf } from '../utils/loanReportExport';
-import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, LoanPaymentAuditRecord, LoanReportData, LoanReportPaperSettings, LoanReportRow, LoanReportType, LoanWorkingDateEntry, PaginationMeta, PermissionKey, PermissionSet, UserRole } from '../types';
+import type { AdminOverview, AppSettings, AppUser, CsvImportType, CsvPreviewSummary, ImportStats, LoanPaymentAuditRecord, LoanReportColumnKey, LoanReportColumnSettings, LoanReportData, LoanReportPaperSettings, LoanReportRow, LoanReportType, LoanWorkingDateEntry, PaginationMeta, PermissionKey, PermissionSet, UserRole } from '../types';
 import { buildCsvPreview } from '../utils/csvPreview';
+
+const reportColumnOrder: LoanReportColumnKey[] = [
+  'sequence',
+  'member_no',
+  'member_name',
+  'opening_balance',
+  'principal_paid',
+  'interest_paid',
+  'remaining_balance',
+  'note',
+];
+
+const reportColumnLabels: Record<LoanReportColumnKey, string> = {
+  sequence: 'ที่',
+  member_no: 'เลขสมาชิก',
+  member_name: 'ชื่อ - สกุล',
+  opening_balance: 'หนี้ยกมา',
+  principal_paid: 'ชำระต้น',
+  interest_paid: 'ชำระดอกเบี้ย',
+  remaining_balance: 'คงเหลือ',
+  note: 'หมายเหตุ',
+};
+
+const defaultReportColumnSettings: LoanReportColumnSettings = {
+  sequence: { width_mm: 9, height_px: 32 },
+  member_no: { width_mm: 14, height_px: 32 },
+  member_name: { width_mm: 45, height_px: 32 },
+  opening_balance: { width_mm: 22, height_px: 32 },
+  principal_paid: { width_mm: 20, height_px: 32 },
+  interest_paid: { width_mm: 20, height_px: 32 },
+  remaining_balance: { width_mm: 22, height_px: 32 },
+  note: { width_mm: 32, height_px: 32 },
+};
 
 const defaultSettings: AppSettings = {
   group_name: APP_GROUP_NAME,
@@ -24,6 +57,7 @@ const defaultSettings: AppSettings = {
     font_scale: 1,
     table_width_percent: 100,
     table_height_percent: 100,
+    column_settings: defaultReportColumnSettings,
   },
 };
 
@@ -65,6 +99,7 @@ const defaultPaperSettings: LoanReportPaperSettings = {
   font_scale: 1,
   table_width_percent: 100,
   table_height_percent: 100,
+  column_settings: defaultReportColumnSettings,
 };
 
 function clampPaperSetting(value: unknown, fallback: number, min: number, max: number) {
@@ -74,6 +109,26 @@ function clampPaperSetting(value: unknown, fallback: number, min: number, max: n
   }
 
   return Math.min(max, Math.max(min, numericValue));
+}
+
+function pxToMm(value: number) {
+  return Math.round((value * 0.2645833333) * 10) / 10;
+}
+
+function normalizeReportColumnSettings(value: unknown): LoanReportColumnSettings {
+  const source = value && typeof value === 'object'
+    ? value as Partial<Record<LoanReportColumnKey, Partial<{ width_mm: number; width_px: number; height_px: number }>>>
+    : {};
+
+  return reportColumnOrder.reduce<LoanReportColumnSettings>((settingsMap, columnKey) => {
+    const parsedColumn = source[columnKey];
+    const fallbackWidthMm = parsedColumn?.width_mm ?? (parsedColumn?.width_px !== undefined ? pxToMm(Number(parsedColumn.width_px)) : defaultReportColumnSettings[columnKey].width_mm);
+    settingsMap[columnKey] = {
+      width_mm: clampPaperSetting(fallbackWidthMm, defaultReportColumnSettings[columnKey].width_mm, 6, 70),
+      height_px: clampPaperSetting(parsedColumn?.height_px, defaultReportColumnSettings[columnKey].height_px, 24, 72),
+    };
+    return settingsMap;
+  }, { ...defaultReportColumnSettings });
 }
 
 function normalizePaperSettings(value: unknown): LoanReportPaperSettings {
@@ -89,6 +144,7 @@ function normalizePaperSettings(value: unknown): LoanReportPaperSettings {
     font_scale: clampPaperSetting(parsed.font_scale, defaultPaperSettings.font_scale, 0.85, 1.15),
     table_width_percent: clampPaperSetting(parsed.table_width_percent, defaultPaperSettings.table_width_percent, 70, 100),
     table_height_percent: clampPaperSetting(parsed.table_height_percent, defaultPaperSettings.table_height_percent, 70, 100),
+    column_settings: normalizeReportColumnSettings(parsed.column_settings),
   };
 }
 
@@ -426,6 +482,26 @@ export function DevManagerPage() {
     });
   }
 
+  function updatePaperColumnSetting(columnKey: LoanReportColumnKey, dimension: 'width_mm' | 'height_px', value: number) {
+    setPaperSettings((current) => {
+      const nextSettings = normalizePaperSettings({
+        ...current,
+        column_settings: {
+          ...current.column_settings,
+          [columnKey]: {
+            ...current.column_settings[columnKey],
+            [dimension]: value,
+          },
+        },
+      });
+      setSettings((currentSettings) => ({
+        ...currentSettings,
+        loan_report_paper_settings: nextSettings,
+      }));
+      return nextSettings;
+    });
+  }
+
   function getReportSummaryItems(report: LoanReportData) {
     return [
       { label: 'ยอดหนี้ยกมา', value: report.summary.opening_balance, hidden: false },
@@ -471,6 +547,10 @@ export function DevManagerPage() {
       width: `${usablePageWidth * (paperSettings.table_width_percent / 100)}mm`,
       minHeight: `${Math.max(120, (usablePageHeight - 24) * (paperSettings.table_height_percent / 100))}mm`,
     };
+    const columnSettings = paperSettings.column_settings;
+    const getColumnCellStyle = (columnKey: LoanReportColumnKey) => ({
+      minHeight: `${columnSettings[columnKey].height_px}px`,
+    });
     const pageStyle = {
       width: `${paperDimensions.width}mm`,
       minHeight: `${paperDimensions.height}mm`,
@@ -527,31 +607,36 @@ export function DevManagerPage() {
 
                 <div className="loan-report-table-shell" style={tableShellStyle}>
                   <table className="loan-report-table">
+                    <colgroup>
+                      {reportColumnOrder.map((columnKey) => (
+                        <col key={columnKey} style={{ width: `${columnSettings[columnKey].width_mm}mm` }} />
+                      ))}
+                    </colgroup>
                     <thead>
                       <tr>
-                        <th>ที่</th>
-                        <th>เลขสมาชิก</th>
-                        <th>ชื่อ - สกุล</th>
-                        <th>หนี้ยกมา</th>
-                        <th>ชำระต้น</th>
-                        <th>ชำระดอกเบี้ย</th>
-                        <th>คงเหลือ</th>
-                        <th>หมายเหตุ</th>
+                        <th style={getColumnCellStyle('sequence')}>ที่</th>
+                        <th style={getColumnCellStyle('member_no')}>เลขสมาชิก</th>
+                        <th style={getColumnCellStyle('member_name')}>ชื่อ - สกุล</th>
+                        <th style={getColumnCellStyle('opening_balance')}>หนี้ยกมา</th>
+                        <th style={getColumnCellStyle('principal_paid')}>ชำระต้น</th>
+                        <th style={getColumnCellStyle('interest_paid')}>ชำระดอกเบี้ย</th>
+                        <th style={getColumnCellStyle('remaining_balance')}>คงเหลือ</th>
+                        <th style={getColumnCellStyle('note')}>หมายเหตุ</th>
                       </tr>
                     </thead>
                     <tbody>
                       {paddedRows.map((row, rowIndex) => (
                         <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={row.sequence > 0 && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : ''}>
-                          <td>{row.sequence || ''}</td>
-                          <td>{row.member_no}</td>
-                          <td>
+                          <td style={getColumnCellStyle('sequence')}>{row.sequence || ''}</td>
+                          <td style={getColumnCellStyle('member_no')}>{row.member_no}</td>
+                          <td style={getColumnCellStyle('member_name')}>
                             {row.member_name && <strong className="loan-report-name">{row.member_name}</strong>}
                           </td>
-                          <td>{row.sequence > 0 ? formatMoney(row.opening_balance) : ''}</td>
-                          <td>{row.sequence > 0 && report.report_type === 'working-day' && row.principal_paid > 0 ? formatMoney(row.principal_paid) : ''}</td>
-                          <td>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatMoney(row.interest_paid) : ''}</td>
-                          <td>{row.sequence > 0 && report.report_type === 'working-day' ? formatMoney(row.remaining_balance) : ''}</td>
-                          <td className={row.sequence > 0 && row.is_overdue ? 'loan-report-note-danger' : ''}>
+                          <td style={getColumnCellStyle('opening_balance')}>{row.sequence > 0 ? formatMoney(row.opening_balance) : ''}</td>
+                          <td style={getColumnCellStyle('principal_paid')}>{row.sequence > 0 && report.report_type === 'working-day' && row.principal_paid > 0 ? formatMoney(row.principal_paid) : ''}</td>
+                          <td style={getColumnCellStyle('interest_paid')}>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatMoney(row.interest_paid) : ''}</td>
+                          <td style={getColumnCellStyle('remaining_balance')}>{row.sequence > 0 && report.report_type === 'working-day' ? formatMoney(row.remaining_balance) : ''}</td>
+                          <td style={getColumnCellStyle('note')} className={row.sequence > 0 && row.is_overdue ? 'loan-report-note-danger' : ''}>
                             {row.sequence > 0 ? row.note ?? '' : ''}
                           </td>
                         </tr>
@@ -1466,6 +1551,37 @@ export function DevManagerPage() {
               <div className="field">
                 <span>ความสูงตาราง (%)</span>
                 <input type="number" min={70} max={100} value={paperSettings.table_height_percent} onChange={(event) => updatePaperSetting('table_height_percent', Number(event.target.value) || defaultPaperSettings.table_height_percent)} />
+              </div>
+              <div className="report-column-settings-block">
+                <strong>ขนาดคอลัมน์</strong>
+                <div className="report-column-settings-grid">
+                  {reportColumnOrder.map((columnKey) => (
+                    <div key={columnKey} className="report-column-settings-item">
+                      <div className="report-column-settings-title">{reportColumnLabels[columnKey]}</div>
+                      <label className="field report-column-setting-field">
+                        <span>กว้าง (มม.)</span>
+                        <input
+                          type="number"
+                          min={6}
+                          max={70}
+                          step={0.5}
+                          value={paperSettings.column_settings[columnKey].width_mm}
+                          onChange={(event) => updatePaperColumnSetting(columnKey, 'width_mm', Number(event.target.value) || defaultReportColumnSettings[columnKey].width_mm)}
+                        />
+                      </label>
+                      <label className="field report-column-setting-field">
+                        <span>สูง (px)</span>
+                        <input
+                          type="number"
+                          min={24}
+                          max={72}
+                          value={paperSettings.column_settings[columnKey].height_px}
+                          onChange={(event) => updatePaperColumnSetting(columnKey, 'height_px', Number(event.target.value) || defaultReportColumnSettings[columnKey].height_px)}
+                        />
+                      </label>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="actions compact-actions">
                 <button type="button" className="btn btn-primary" onClick={() => void handleSavePaperSettings()} disabled={savingPaperSettings}>

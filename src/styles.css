@@ -1034,6 +1034,35 @@ textarea {
   margin: 0;
 }
 
+.report-column-settings-block {
+  display: grid;
+  gap: 10px;
+}
+
+.report-column-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.report-column-settings-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #dcebdc;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+}
+
+.report-column-settings-title {
+  font-weight: 700;
+  color: #1b4332;
+}
+
+.report-column-setting-field {
+  margin-bottom: 0;
+}
+
 .report-export-actions {
   margin-top: 16px;
 }
@@ -1182,22 +1211,6 @@ textarea {
 .loan-report-table td:nth-child(3),
 .loan-report-table td:nth-child(8) {
   text-align: left;
-}
-
-.loan-report-table td:nth-child(1) {
-  width: 34px;
-}
-
-.loan-report-table td:nth-child(2) {
-  width: 54px;
-}
-
-.loan-report-table td:nth-child(3) {
-  width: 236px;
-}
-
-.loan-report-table td:nth-child(8) {
-  width: 150px;
 }
 
 .loan-report-table tfoot td {
