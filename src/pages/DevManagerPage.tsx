@@ -143,6 +143,7 @@ function getPageRows(rows: LoanReportRow[], pageSize: number) {
       principal_paid: 0,
       interest_paid: 0,
       remaining_balance: 0,
+      normal_principal_amount: 0,
       cash_amount: 0,
       settlement_amount: 0,
       note: null,
@@ -412,9 +413,20 @@ export function DevManagerPage() {
     });
   }
 
+  function getCoverPageNotes(report: LoanReportData) {
+    if (report.report_type !== 'working-day') {
+      return [] as string[];
+    }
+
+    return report.rows
+      .filter((row) => row.normal_principal_amount > 0 && row.settlement_amount > 0)
+      .map((row) => `${row.member_no} ${row.member_name} ชำระต้น ${formatMoney(row.normal_principal_amount)} บาท กลบหนี้ ${formatMoney(row.settlement_amount)} บาท`);
+  }
+
   function renderReportPreview(report: LoanReportData) {
     const pages = chunkReportRows(report.rows, report.rows_per_page);
     const paperDimensions = getPaperDimensions(paperSettings);
+    const coverPageNotes = getCoverPageNotes(report);
     const pageStyle = {
       width: `${paperDimensions.width}mm`,
       minHeight: `${paperDimensions.height}mm`,
@@ -443,6 +455,16 @@ export function DevManagerPage() {
                 </div>
               ))}
             </div>
+            {coverPageNotes.length > 0 && (
+              <div className="loan-report-cover-notes">
+                <strong>หมายเหตุ</strong>
+                <div className="loan-report-cover-note-list">
+                  {coverPageNotes.map((note) => (
+                    <div key={note}>{note}</div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           {pages.map((pageRows, pageIndex) => {

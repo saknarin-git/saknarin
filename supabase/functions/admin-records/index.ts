@@ -260,12 +260,16 @@ function formatReportMoney(value: number) {
   }).format(roundMoney(value));
 }
 
-function buildCombinedPaymentNote(cashAmount: number, settlementAmount: number) {
-  if (cashAmount > 0 && settlementAmount > 0) {
-    return `ชำระ ${formatReportMoney(cashAmount)} บาท กลบหนี้ ${formatReportMoney(settlementAmount)} บาท`;
+function buildCombinedPaymentNote(normalPrincipalAmount: number, settlementAmount: number) {
+  if (settlementAmount <= 0) {
+    return null;
   }
 
-  return null;
+  if (normalPrincipalAmount > 0) {
+    return 'ชำระต้น+กลบหนี้';
+  }
+
+  return 'กลบหนี้';
 }
 
 function buildOutstandingNote(overdueInstallments: number) {
@@ -349,6 +353,11 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
         });
         const principalPaid = roundMoney(contractPayments.reduce((sum, payment) => sum + Number(payment.principal_paid ?? 0), 0));
         const interestPaid = roundMoney(contractPayments.reduce((sum, payment) => sum + Number(payment.interest_paid ?? 0), 0));
+        const normalPrincipalAmount = roundMoney(contractPayments.reduce((sum, payment) => (
+          String(payment.payment_mode ?? 'normal') === 'settlement'
+            ? sum
+            : sum + Number(payment.principal_paid ?? 0)
+        ), 0));
         const cashAmount = roundMoney(contractPayments.reduce((sum, payment) => (
           String(payment.payment_mode ?? 'normal') === 'settlement'
             ? sum
@@ -370,9 +379,10 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
           principal_paid: principalPaid,
           interest_paid: interestPaid,
           remaining_balance: remainingBalance,
+          normal_principal_amount: normalPrincipalAmount,
           cash_amount: cashAmount,
           settlement_amount: settlementAmount,
-          note: hasPayment ? buildCombinedPaymentNote(cashAmount, settlementAmount) : 'ขาดส่ง',
+          note: hasPayment ? buildCombinedPaymentNote(normalPrincipalAmount, settlementAmount) : 'ขาดส่ง',
           payment_mode: settlementAmount > 0 && cashAmount === 0 ? 'settlement' : 'normal',
           overdue_installments: hasPayment ? 0 : 1,
           is_overdue: !hasPayment,
@@ -447,6 +457,7 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
         principal_paid: 0,
         interest_paid: 0,
         remaining_balance: openingBalance,
+        normal_principal_amount: 0,
         cash_amount: 0,
         settlement_amount: 0,
         note: buildOutstandingNote(overdueInstallments),

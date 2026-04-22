@@ -1089,6 +1089,20 @@ textarea {
   gap: 14px;
 }
 
+.loan-report-cover-notes {
+  border-top: 1px solid #d8ead8;
+  padding-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+
+.loan-report-cover-note-list {
+  display: grid;
+  gap: 6px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
 .loan-report-summary-card {
   border: 1px solid #d8ead8;
   border-radius: 16px;
