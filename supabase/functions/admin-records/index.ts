@@ -324,7 +324,7 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
     const { data: payments, error: paymentsError } = await adminClient
       .from('loan_payments')
       .select('id, contract_no, member_no, payment_mode, paid_date, principal_paid, interest_paid, remaining_balance, note, created_at')
-      .eq('paid_date', paidDateText);
+      .lte('paid_date', paidDateText);
 
     if (paymentsError) {
       throw paymentsError;
@@ -334,40 +334,13 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
     const [contractResult] = await Promise.all([
       adminClient
         .from('loan_contracts')
-        .select('contract_no, member_no, title, first_name, last_name, outstanding_amount, contract_date')
+        .select('contract_no, member_no, title, first_name, last_name, loan_amount, outstanding_amount, contract_date')
         .order('member_no', { ascending: true })
         .order('contract_no', { ascending: true }),
     ]);
 
     if (contractResult.error) {
       throw contractResult.error;
-    }
-
-    const contractNos = (contractResult.data ?? [])
-      .map((contract) => String(contract.contract_no ?? '').trim())
-      .filter(Boolean);
-
-    const futurePrincipalPaidByContract = new Map<string, number>();
-    if (contractNos.length > 0) {
-      const { data: futurePayments, error: futurePaymentsError } = await adminClient
-        .from('loan_payments')
-        .select('contract_no, principal_paid')
-        .in('contract_no', contractNos)
-        .gt('paid_date', paidDateText);
-
-      if (futurePaymentsError) {
-        throw futurePaymentsError;
-      }
-
-      (futurePayments ?? []).forEach((payment) => {
-        const contractNo = String(payment.contract_no ?? '').trim();
-        if (!contractNo) {
-          return;
-        }
-
-        const currentTotal = futurePrincipalPaidByContract.get(contractNo) ?? 0;
-        futurePrincipalPaidByContract.set(contractNo, roundMoney(currentTotal + Number(payment.principal_paid ?? 0)));
-      });
     }
 
     const paymentsByContract = new Map<string, typeof paymentRows>();
@@ -386,13 +359,23 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
       .filter((contract) => {
         const contractNo = String(contract.contract_no ?? '').trim();
         const contractDate = normalizeDateOnly(contract.contract_date);
-        const currentOutstandingAmount = roundMoney(Number(contract.outstanding_amount ?? 0));
-        const closingBalance = roundMoney(currentOutstandingAmount + (futurePrincipalPaidByContract.get(contractNo) ?? 0));
+        const contractPayments = paymentsByContract.get(contractNo) ?? [];
+        const sameDayPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') === paidDateText);
+        const priorPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') < paidDateText);
+        const latestPriorPayment = priorPayments[priorPayments.length - 1] ?? null;
+        const closingBalance = sameDayPayments.length > 0
+          ? roundMoney(sameDayPayments.reduce((lowestBalance, payment) => {
+              const remainingBalance = Number(payment.remaining_balance ?? 0);
+              return Math.min(lowestBalance, remainingBalance);
+            }, Number.POSITIVE_INFINITY))
+          : latestPriorPayment
+            ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
+            : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
         if (!contractDate) {
           return false;
         }
 
-        return contractDate < paidDateText && (closingBalance > 0 || paymentsByContract.has(contractNo));
+        return contractDate < paidDateText && (closingBalance > 0 || sameDayPayments.length > 0);
       })
       .map((contract) => {
         const contractNo = String(contract.contract_no ?? '');
@@ -400,42 +383,51 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
         const contractPayments = [...(paymentsByContract.get(contractNo) ?? [])].sort((left, right) => {
           const leftCreatedAt = String(left.created_at ?? '');
           const rightCreatedAt = String(right.created_at ?? '');
-          return leftCreatedAt.localeCompare(rightCreatedAt) || String(left.id ?? '').localeCompare(String(right.id ?? ''));
+          return String(left.paid_date ?? '').localeCompare(String(right.paid_date ?? ''))
+            || leftCreatedAt.localeCompare(rightCreatedAt)
+            || String(left.id ?? '').localeCompare(String(right.id ?? ''));
         });
-        const principalPaid = roundMoney(contractPayments.reduce((sum, payment) => sum + Number(payment.principal_paid ?? 0), 0));
-        const interestPaid = roundMoney(contractPayments.reduce((sum, payment) => sum + Number(payment.interest_paid ?? 0), 0));
-        const normalPrincipalAmount = roundMoney(contractPayments.reduce((sum, payment) => (
+        const sameDayPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') === paidDateText);
+        const priorPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') < paidDateText);
+        const latestPriorPayment = priorPayments[priorPayments.length - 1] ?? null;
+        const principalPaid = roundMoney(sameDayPayments.reduce((sum, payment) => sum + Number(payment.principal_paid ?? 0), 0));
+        const interestPaid = roundMoney(sameDayPayments.reduce((sum, payment) => sum + Number(payment.interest_paid ?? 0), 0));
+        const normalPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
           String(payment.payment_mode ?? 'normal') === 'settlement'
             ? sum
             : sum + Number(payment.principal_paid ?? 0)
         ), 0));
-        const cashAmount = roundMoney(contractPayments.reduce((sum, payment) => (
+        const cashAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
           String(payment.payment_mode ?? 'normal') === 'settlement'
             ? sum
             : sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
         ), 0));
-        const settlementAmount = roundMoney(contractPayments.reduce((sum, payment) => (
+        const settlementAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
           String(payment.payment_mode ?? 'normal') === 'settlement'
             ? sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
             : sum
         ), 0));
-        const currentOutstandingAmount = roundMoney(Number(contract.outstanding_amount ?? 0));
-        const hasPayment = contractPayments.length > 0;
+        const hasPayment = sameDayPayments.length > 0;
         const dayEndRemainingBalance = hasPayment
-          ? roundMoney(contractPayments.reduce((lowestBalance, payment) => {
+          ? roundMoney(sameDayPayments.reduce((lowestBalance, payment) => {
               const remainingBalance = Number(payment.remaining_balance ?? 0);
               return Math.min(lowestBalance, remainingBalance);
             }, Number.POSITIVE_INFINITY))
           : null;
         const remainingBalance = hasPayment
           ? roundMoney(dayEndRemainingBalance ?? 0)
-          : roundMoney(currentOutstandingAmount + (futurePrincipalPaidByContract.get(contractNo) ?? 0));
+          : latestPriorPayment
+            ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
+            : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
+        const openingBalance = latestPriorPayment
+          ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
+          : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
 
         return {
           member_no: memberNo,
           member_name: buildMemberFullName(contract.title, contract.first_name, contract.last_name),
           contract_no: contractNo,
-          opening_balance: roundMoney(remainingBalance + principalPaid),
+          opening_balance: openingBalance,
           principal_paid: principalPaid,
           interest_paid: interestPaid,
           remaining_balance: remainingBalance,
