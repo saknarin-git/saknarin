@@ -363,11 +363,27 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
         const sameDayPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') === paidDateText);
         const priorPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') < paidDateText);
         const latestPriorPayment = priorPayments[priorPayments.length - 1] ?? null;
+        const openingBalance = latestPriorPayment
+          ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
+          : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
+        const sameDayNormalPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
+          String(payment.payment_mode ?? 'normal') === 'settlement'
+            ? sum
+            : sum + Number(payment.principal_paid ?? 0)
+        ), 0));
+        const sameDaySettlementPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
+          String(payment.payment_mode ?? 'normal') === 'settlement'
+            ? sum + Number(payment.principal_paid ?? 0)
+            : sum
+        ), 0));
+        const hasPrincipalImpact = sameDayNormalPrincipalAmount > 0 || sameDaySettlementPrincipalAmount > 0;
         const closingBalance = sameDayPayments.length > 0
-          ? roundMoney(sameDayPayments.reduce((lowestBalance, payment) => {
+          ? hasPrincipalImpact
+            ? roundMoney(sameDayPayments.reduce((lowestBalance, payment) => {
               const remainingBalance = Number(payment.remaining_balance ?? 0);
               return Math.min(lowestBalance, remainingBalance);
             }, Number.POSITIVE_INFINITY))
+            : openingBalance
           : latestPriorPayment
             ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
             : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
@@ -396,6 +412,11 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
             ? sum
             : sum + Number(payment.principal_paid ?? 0)
         ), 0));
+        const settlementPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
+          String(payment.payment_mode ?? 'normal') === 'settlement'
+            ? sum + Number(payment.principal_paid ?? 0)
+            : sum
+        ), 0));
         const cashAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
           String(payment.payment_mode ?? 'normal') === 'settlement'
             ? sum
@@ -406,7 +427,11 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
             ? sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
             : sum
         ), 0));
+        const openingBalance = latestPriorPayment
+          ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
+          : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
         const hasPayment = sameDayPayments.length > 0;
+        const hasPrincipalImpact = normalPrincipalAmount > 0 || settlementPrincipalAmount > 0;
         const dayEndRemainingBalance = hasPayment
           ? roundMoney(sameDayPayments.reduce((lowestBalance, payment) => {
               const remainingBalance = Number(payment.remaining_balance ?? 0);
@@ -414,13 +439,12 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
             }, Number.POSITIVE_INFINITY))
           : null;
         const remainingBalance = hasPayment
-          ? roundMoney(dayEndRemainingBalance ?? 0)
+          ? hasPrincipalImpact
+            ? roundMoney(dayEndRemainingBalance ?? 0)
+            : openingBalance
           : latestPriorPayment
             ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
             : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
-        const openingBalance = latestPriorPayment
-          ? roundMoney(Number(latestPriorPayment.remaining_balance ?? 0))
-          : roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));
 
         return {
           member_no: memberNo,
