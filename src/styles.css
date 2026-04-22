@@ -1146,10 +1146,10 @@ textarea {
 }
 
 .loan-report-table td:nth-child(1),
+.loan-report-table td:nth-child(4),
 .loan-report-table td:nth-child(5),
 .loan-report-table td:nth-child(6),
-.loan-report-table td:nth-child(7),
-.loan-report-table td:nth-child(8) {
+.loan-report-table td:nth-child(7) {
   text-align: right;
 }
 
@@ -1158,8 +1158,7 @@ textarea {
 }
 
 .loan-report-table td:nth-child(3),
-.loan-report-table td:nth-child(4),
-.loan-report-table td:nth-child(9) {
+.loan-report-table td:nth-child(8) {
   text-align: left;
 }
 
@@ -1172,14 +1171,10 @@ textarea {
 }
 
 .loan-report-table td:nth-child(3) {
-  width: 112px;
-}
-
-.loan-report-table td:nth-child(4) {
   width: 190px;
 }
 
-.loan-report-table td:nth-child(9) {
+.loan-report-table td:nth-child(8) {
   width: 150px;
 }
 

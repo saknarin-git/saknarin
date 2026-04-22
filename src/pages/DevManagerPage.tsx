@@ -464,7 +464,6 @@ export function DevManagerPage() {
                     <tr>
                       <th>ที่</th>
                       <th>เลขสมาชิก</th>
-                      <th>เลขที่สัญญา</th>
                       <th>ชื่อ - สกุล</th>
                       <th>หนี้ยกมา</th>
                       <th>ชำระต้น</th>
@@ -478,7 +477,6 @@ export function DevManagerPage() {
                       <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={row.sequence > 0 && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : ''}>
                         <td>{row.sequence || ''}</td>
                         <td>{row.member_no}</td>
-                        <td>{row.contract_no}</td>
                         <td>
                           {row.member_name && <strong className="loan-report-name">{row.member_name}</strong>}
                         </td>
@@ -494,7 +492,7 @@ export function DevManagerPage() {
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={4}><strong>รวมหน้า</strong></td>
+                      <td colSpan={3}><strong>รวมหน้า</strong></td>
                       <td><strong>{formatMoney(totals.opening_balance)}</strong></td>
                       <td><strong>{report.report_type === 'working-day' && totals.principal_paid > 0 ? formatMoney(totals.principal_paid) : ''}</strong></td>
                       <td><strong>{report.report_type === 'working-day' && totals.interest_paid > 0 ? formatMoney(totals.interest_paid) : ''}</strong></td>
