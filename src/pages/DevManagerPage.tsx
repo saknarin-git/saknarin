@@ -667,7 +667,7 @@ export function DevManagerPage() {
       configuredRowHeightMm * totalTableRows,
       Math.max(70, detailTableAvailableHeight * (paperSettings.table_height_percent / 100)),
     );
-    const effectiveRowHeightMm = roundMoney(detailTableHeightMm / totalTableRows);
+    const effectiveRowHeightMm = Math.round((detailTableHeightMm / totalTableRows) * 10) / 10;
     const pages = chunkReportRows(report.rows, report.rows_per_page);
     const detailTableShellStyle = {
       width: tableShellWidth,
