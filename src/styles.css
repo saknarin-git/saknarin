@@ -1234,7 +1234,17 @@ textarea {
   background: #fff1f1;
 }
 
+.loan-report-row-note-danger td,
+.loan-report-row-note-danger .loan-report-name {
+  color: #b42318;
+}
+
 .loan-report-note-danger {
+  color: #b42318;
+  font-weight: 700;
+}
+
+.loan-report-note-settlement {
   color: #b42318;
   font-weight: 700;
 }

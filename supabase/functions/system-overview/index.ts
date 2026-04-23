@@ -22,14 +22,14 @@ interface LoanReportPaperSettings {
 }
 
 const defaultLoanReportColumnSettings: Record<string, { width_mm: number; height_mm: number; header_text: string }> = {
-  sequence: { width_mm: 9, height_mm: 8.5, header_text: 'ที่' },
-  member_no: { width_mm: 14, height_mm: 8.5, header_text: 'เลขสมาชิก' },
-  member_name: { width_mm: 45, height_mm: 8.5, header_text: 'ชื่อ - สกุล' },
-  opening_balance: { width_mm: 22, height_mm: 8.5, header_text: 'หนี้ยกมา' },
-  principal_paid: { width_mm: 20, height_mm: 8.5, header_text: 'ชำระต้น' },
-  interest_paid: { width_mm: 20, height_mm: 8.5, header_text: 'ชำระดอกเบี้ย' },
-  remaining_balance: { width_mm: 22, height_mm: 8.5, header_text: 'คงเหลือ' },
-  note: { width_mm: 32, height_mm: 8.5, header_text: 'หมายเหตุ' },
+  sequence: { width_mm: 9, height_mm: 6, header_text: 'ที่' },
+  member_no: { width_mm: 14, height_mm: 6, header_text: 'เลขสมาชิก' },
+  member_name: { width_mm: 45, height_mm: 6, header_text: 'ชื่อ - สกุล' },
+  opening_balance: { width_mm: 22, height_mm: 6, header_text: 'หนี้ยกมา' },
+  principal_paid: { width_mm: 20, height_mm: 6, header_text: 'ชำระต้น' },
+  interest_paid: { width_mm: 20, height_mm: 6, header_text: 'ชำระดอกเบี้ย' },
+  remaining_balance: { width_mm: 22, height_mm: 6, header_text: 'คงเหลือ' },
+  note: { width_mm: 32, height_mm: 6, header_text: 'หมายเหตุ' },
 };
 
 const defaultLoanReportPaperSettings: LoanReportPaperSettings = {

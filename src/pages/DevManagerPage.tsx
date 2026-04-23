@@ -35,25 +35,25 @@ const reportColumnLabels: Record<LoanReportColumnKey, string> = {
 };
 
 const a4PortraitColumnSettings: LoanReportColumnSettings = {
-  sequence: { width_mm: 9, height_mm: 8.5, header_text: reportColumnLabels.sequence },
-  member_no: { width_mm: 14, height_mm: 8.5, header_text: reportColumnLabels.member_no },
-  member_name: { width_mm: 45, height_mm: 8.5, header_text: reportColumnLabels.member_name },
-  opening_balance: { width_mm: 22, height_mm: 8.5, header_text: reportColumnLabels.opening_balance },
-  principal_paid: { width_mm: 20, height_mm: 8.5, header_text: reportColumnLabels.principal_paid },
-  interest_paid: { width_mm: 20, height_mm: 8.5, header_text: reportColumnLabels.interest_paid },
-  remaining_balance: { width_mm: 22, height_mm: 8.5, header_text: reportColumnLabels.remaining_balance },
-  note: { width_mm: 32, height_mm: 8.5, header_text: reportColumnLabels.note },
+  sequence: { width_mm: 9, height_mm: 6, header_text: reportColumnLabels.sequence },
+  member_no: { width_mm: 14, height_mm: 6, header_text: reportColumnLabels.member_no },
+  member_name: { width_mm: 45, height_mm: 6, header_text: reportColumnLabels.member_name },
+  opening_balance: { width_mm: 22, height_mm: 6, header_text: reportColumnLabels.opening_balance },
+  principal_paid: { width_mm: 20, height_mm: 6, header_text: reportColumnLabels.principal_paid },
+  interest_paid: { width_mm: 20, height_mm: 6, header_text: reportColumnLabels.interest_paid },
+  remaining_balance: { width_mm: 22, height_mm: 6, header_text: reportColumnLabels.remaining_balance },
+  note: { width_mm: 32, height_mm: 6, header_text: reportColumnLabels.note },
 };
 
 const a4LandscapeColumnSettings: LoanReportColumnSettings = {
-  sequence: { width_mm: 10, height_mm: 8.5, header_text: reportColumnLabels.sequence },
-  member_no: { width_mm: 16, height_mm: 8.5, header_text: reportColumnLabels.member_no },
-  member_name: { width_mm: 66, height_mm: 8.5, header_text: reportColumnLabels.member_name },
-  opening_balance: { width_mm: 28, height_mm: 8.5, header_text: reportColumnLabels.opening_balance },
-  principal_paid: { width_mm: 24, height_mm: 8.5, header_text: reportColumnLabels.principal_paid },
-  interest_paid: { width_mm: 24, height_mm: 8.5, header_text: reportColumnLabels.interest_paid },
-  remaining_balance: { width_mm: 28, height_mm: 8.5, header_text: reportColumnLabels.remaining_balance },
-  note: { width_mm: 48, height_mm: 8.5, header_text: reportColumnLabels.note },
+  sequence: { width_mm: 10, height_mm: 6, header_text: reportColumnLabels.sequence },
+  member_no: { width_mm: 16, height_mm: 6, header_text: reportColumnLabels.member_no },
+  member_name: { width_mm: 66, height_mm: 6, header_text: reportColumnLabels.member_name },
+  opening_balance: { width_mm: 28, height_mm: 6, header_text: reportColumnLabels.opening_balance },
+  principal_paid: { width_mm: 24, height_mm: 6, header_text: reportColumnLabels.principal_paid },
+  interest_paid: { width_mm: 24, height_mm: 6, header_text: reportColumnLabels.interest_paid },
+  remaining_balance: { width_mm: 28, height_mm: 6, header_text: reportColumnLabels.remaining_balance },
+  note: { width_mm: 48, height_mm: 6, header_text: reportColumnLabels.note },
 };
 
 const defaultReportColumnSettings: LoanReportColumnSettings = {
@@ -148,10 +148,12 @@ function normalizeReportColumnSettings(value: unknown): LoanReportColumnSettings
   return reportColumnOrder.reduce<LoanReportColumnSettings>((settingsMap, columnKey) => {
     const parsedColumn = source[columnKey];
     const fallbackWidthMm = parsedColumn?.width_mm ?? (parsedColumn?.width_px !== undefined ? pxToMm(Number(parsedColumn.width_px)) : defaultReportColumnSettings[columnKey].width_mm);
-    const fallbackHeightMm = parsedColumn?.height_mm ?? (parsedColumn?.height_px !== undefined ? pxToMm(Number(parsedColumn.height_px)) : defaultReportColumnSettings[columnKey].height_mm);
+    const rawHeightMm = parsedColumn?.height_mm ?? (parsedColumn?.height_px !== undefined ? pxToMm(Number(parsedColumn.height_px)) : defaultReportColumnSettings[columnKey].height_mm);
+    // Migrate old default 8.5mm to new default 6mm automatically
+    const fallbackHeightMm = rawHeightMm === 8.5 ? defaultReportColumnSettings[columnKey].height_mm : rawHeightMm;
     settingsMap[columnKey] = {
       width_mm: clampPaperSetting(fallbackWidthMm, defaultReportColumnSettings[columnKey].width_mm, 6, 70),
-      height_mm: clampPaperSetting(fallbackHeightMm, defaultReportColumnSettings[columnKey].height_mm, 6, 20),
+      height_mm: clampPaperSetting(fallbackHeightMm, defaultReportColumnSettings[columnKey].height_mm, 4, 20),
       header_text: typeof parsedColumn?.header_text === 'string' && parsedColumn.header_text.trim()
         ? parsedColumn.header_text.trim()
         : defaultReportColumnSettings[columnKey].header_text,
@@ -630,6 +632,23 @@ export function DevManagerPage() {
       .map((row) => `${row.member_no} ${row.member_name} ชำระต้น ${formatReportMoney(row.normal_principal_amount)} บาท กลบหนี้ ${formatReportMoney(row.settlement_amount)} บาท`);
   }
 
+  function isMissingPaymentNote(note: string | null) {
+    return String(note ?? '').trim() === 'ขาดส่ง';
+  }
+
+  function renderReportNote(note: string | null) {
+    const text = String(note ?? '');
+    if (!text) {
+      return '';
+    }
+
+    return text.split(/(กลบหนี้)/g).map((part, index) => (
+      part === 'กลบหนี้'
+        ? <span key={`report-note-${index}`} className="loan-report-note-settlement">{part}</span>
+        : <span key={`report-note-${index}`}>{part}</span>
+    ));
+  }
+
   function renderReportPreview(report: LoanReportData) {
     const paperDimensions = getPaperDimensions(paperSettings);
     const coverPageNotes = getCoverPageNotes(report);
@@ -732,8 +751,15 @@ export function DevManagerPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {paddedRows.map((row, rowIndex) => (
-                        <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={row.sequence > 0 && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : ''}>
+                      {paddedRows.map((row, rowIndex) => {
+                        const hasSequence = row.sequence > 0;
+                        const rowClassName = [
+                          hasSequence && row.is_overdue && report.report_type === 'outstanding' ? 'loan-report-row-overdue' : '',
+                          hasSequence && isMissingPaymentNote(row.note) ? 'loan-report-row-note-danger' : '',
+                        ].filter(Boolean).join(' ');
+
+                        return (
+                        <tr key={`report-row-${pageIndex + 1}-${row.sequence || rowIndex + 1}`} className={rowClassName}>
                           <td style={getColumnCellStyle('sequence')}>{row.sequence || ''}</td>
                           <td style={getColumnCellStyle('member_no')}>{row.member_no}</td>
                           <td style={getColumnCellStyle('member_name')}>
@@ -744,10 +770,10 @@ export function DevManagerPage() {
                           <td style={getColumnCellStyle('interest_paid')}>{row.sequence > 0 && report.report_type === 'working-day' && row.interest_paid > 0 ? formatReportMoney(row.interest_paid) : ''}</td>
                           <td style={getColumnCellStyle('remaining_balance')}>{row.sequence > 0 && report.report_type === 'working-day' ? formatReportMoney(row.remaining_balance) : ''}</td>
                           <td style={getColumnCellStyle('note')} className={row.sequence > 0 && row.is_overdue ? 'loan-report-note-danger' : ''}>
-                            {row.sequence > 0 ? row.note ?? '' : ''}
+                            {row.sequence > 0 ? renderReportNote(row.note) : ''}
                           </td>
                         </tr>
-                      ))}
+                      );})}
                     </tbody>
                     <tfoot>
                       <tr>
