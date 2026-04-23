@@ -660,17 +660,20 @@ export function DevManagerPage() {
     const detailHeaderReserveMm = 14;
     const detailPageGapReserveMm = 3;
     const detailTableAvailableHeight = Math.max(70, usablePageHeight - detailHeaderReserveMm - detailPageGapReserveMm);
-    const detailTableHeightMm = Math.max(70, detailTableAvailableHeight * (paperSettings.table_height_percent / 100));
     const totalTableRows = report.rows_per_page + 2;
-    const effectiveRowHeightMm = Math.min(configuredRowHeightMm, roundMoney(detailTableHeightMm / totalTableRows));
+    // Shell height is driven by the configured row height so the table engine
+    // does not stretch rows beyond what the user set.
+    const detailTableHeightMm = Math.min(
+      configuredRowHeightMm * totalTableRows,
+      Math.max(70, detailTableAvailableHeight * (paperSettings.table_height_percent / 100)),
+    );
+    const effectiveRowHeightMm = roundMoney(detailTableHeightMm / totalTableRows);
     const pages = chunkReportRows(report.rows, report.rows_per_page);
     const detailTableShellStyle = {
       width: tableShellWidth,
-      minHeight: `${detailTableHeightMm}mm`,
-      maxHeight: `${detailTableHeightMm}mm`,
+      height: `${detailTableHeightMm}mm`,
     };
     const getColumnCellStyle = (columnKey: LoanReportColumnKey) => ({
-      minHeight: `${effectiveRowHeightMm}mm`,
       height: `${effectiveRowHeightMm}mm`,
     });
     const pageStyle = {
