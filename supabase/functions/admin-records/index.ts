@@ -279,6 +279,35 @@ function formatReportMoney(value: number) {
   }).format(roundMoney(value));
 }
 
+function parseSettlementAmountFromNote(note: unknown) {
+  const normalizedNote = String(note ?? '');
+  const match = normalizedNote.match(/กลบหนี้\s+([0-9,]+(?:\.\d+)?)\s*บาท/i);
+  if (!match) {
+    return 0;
+  }
+
+  const parsedValue = Number(match[1].replace(/,/g, ''));
+  return Number.isFinite(parsedValue) ? roundMoney(parsedValue) : 0;
+}
+
+function getPaymentSettlementPrincipal(payment: { payment_mode?: unknown; principal_paid?: unknown; note?: unknown }) {
+  const principalPaid = roundMoney(Number(payment.principal_paid ?? 0));
+  if (String(payment.payment_mode ?? 'normal') === 'settlement') {
+    return principalPaid;
+  }
+
+  return Math.min(principalPaid, parseSettlementAmountFromNote(payment.note));
+}
+
+function getPaymentNormalPrincipal(payment: { payment_mode?: unknown; principal_paid?: unknown; note?: unknown }) {
+  const principalPaid = roundMoney(Number(payment.principal_paid ?? 0));
+  if (String(payment.payment_mode ?? 'normal') === 'settlement') {
+    return 0;
+  }
+
+  return roundMoney(Math.max(0, principalPaid - getPaymentSettlementPrincipal(payment)));
+}
+
 function buildCombinedPaymentNote(normalPrincipalAmount: number, settlementAmount: number) {
   if (settlementAmount <= 0) {
     return null;
@@ -387,25 +416,13 @@ async function buildLoanReport(reportType: LoanReportType, paidDateText: string)
         const priorPayments = contractPayments.filter((payment) => String(payment.paid_date ?? '') < paidDateText);
         const latestPriorPayment = priorPayments[priorPayments.length - 1] ?? null;
         const interestPaid = roundMoney(sameDayPayments.reduce((sum, payment) => sum + Number(payment.interest_paid ?? 0), 0));
-        const normalPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
-          String(payment.payment_mode ?? 'normal') === 'settlement'
-            ? sum
-            : sum + Number(payment.principal_paid ?? 0)
-        ), 0));
-        const settlementPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
-          String(payment.payment_mode ?? 'normal') === 'settlement'
-            ? sum + Number(payment.principal_paid ?? 0)
-            : sum
-        ), 0));
+        const normalPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => sum + getPaymentNormalPrincipal(payment), 0));
+        const settlementPrincipalAmount = roundMoney(sameDayPayments.reduce((sum, payment) => sum + getPaymentSettlementPrincipal(payment), 0));
         const cashAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
-          String(payment.payment_mode ?? 'normal') === 'settlement'
-            ? sum
-            : sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
+          sum + getPaymentNormalPrincipal(payment) + Number(payment.interest_paid ?? 0)
         ), 0));
         const settlementAmount = roundMoney(sameDayPayments.reduce((sum, payment) => (
-          String(payment.payment_mode ?? 'normal') === 'settlement'
-            ? sum + Number(payment.principal_paid ?? 0) + Number(payment.interest_paid ?? 0)
-            : sum
+          sum + getPaymentSettlementPrincipal(payment)
         ), 0));
         const hasPayment = sameDayPayments.length > 0;
         const loanAmount = roundMoney(Number(contract.loan_amount ?? contract.outstanding_amount ?? 0));

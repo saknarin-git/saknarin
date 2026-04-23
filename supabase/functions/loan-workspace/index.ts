@@ -27,6 +27,21 @@ function roundMoney(value: number) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function formatNoteMoney(value: number) {
+  return new Intl.NumberFormat('th-TH', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(roundMoney(value));
+}
+
+function buildMergedSettlementNote(baseNote: unknown, settlementAmount: number) {
+  const normalizedBaseNote = String(baseNote ?? '')
+    .replace(/\s*\|\s*กลบหนี้\s+[0-9,]+(?:\.\d+)?\s*บาท/gi, '')
+    .trim();
+  const settlementNote = `กลบหนี้ ${formatNoteMoney(settlementAmount)} บาท`;
+  return normalizedBaseNote ? `${normalizedBaseNote} | ${settlementNote}` : settlementNote;
+}
+
 function buildDefaultWorkingDates(year: number) {
   return monthNumbers.map((month) => ({ month, date: null as string | null }));
 }
@@ -516,8 +531,30 @@ async function savePayment(payload: Record<string, unknown>, currentUserId: stri
     }
   }
 
+  const { data: sameDayPayments, error: sameDayPaymentsError } = paymentMode === 'settlement'
+    ? await adminClient
+        .from('loan_payments')
+        .select('id, payment_mode, principal_paid, interest_paid, interest_installments_paid, remaining_balance, note, created_at')
+        .eq('contract_no', contract.contract_no)
+        .eq('member_no', contract.member_no)
+        .eq('paid_date', paidDate)
+        .order('created_at', { ascending: false })
+    : { data: [], error: null };
+
+  if (sameDayPaymentsError) {
+    throw sameDayPaymentsError;
+  }
+
+  const mergeTargetPayment = paymentMode === 'settlement'
+    ? (sameDayPayments ?? []).find((item) => String(item.payment_mode ?? 'normal') === 'normal')
+      ?? (sameDayPayments ?? [])[0]
+      ?? null
+    : null;
+
   const remainingBalance = roundMoney(outstandingAmount - principalPaid);
-  const note = paymentMode === 'settlement'
+  const note = mergeTargetPayment
+    ? buildMergedSettlementNote(mergeTargetPayment.note, principalPaid)
+    : paymentMode === 'settlement'
     ? 'กลบหนี้'
     : interestInstallmentsPaid > 1
       ? `ชำระดอกเบี้ย ${interestInstallmentsPaid} งวด`
@@ -525,33 +562,60 @@ async function savePayment(payload: Record<string, unknown>, currentUserId: stri
         ? 'ชำระต้นพร้อมดอกเบี้ยประจำงวด'
         : 'ชำระเฉพาะดอกเบี้ยประจำงวด';
 
+  const paymentPrincipalPaid = mergeTargetPayment
+    ? roundMoney(Number(mergeTargetPayment.principal_paid ?? 0) + principalPaid)
+    : principalPaid;
+  const paymentInterestPaid = mergeTargetPayment
+    ? roundMoney(Number(mergeTargetPayment.interest_paid ?? 0) + interestPaid)
+    : interestPaid;
+  const paymentInterestInstallmentsPaid = mergeTargetPayment
+    ? Number(mergeTargetPayment.interest_installments_paid ?? 0) + interestInstallmentsPaid
+    : interestInstallmentsPaid;
+  const storedPaymentMode = mergeTargetPayment
+    ? getPaymentMode(String(mergeTargetPayment.payment_mode ?? paymentMode))
+    : paymentMode;
+
   const preview = {
-    payment_mode: paymentMode,
+    payment_mode: storedPaymentMode,
     paid_date: paidDate,
     contract_no: contract.contract_no,
     member_no: contract.member_no,
     member_name: `${contract.title}${contract.first_name} ${contract.last_name}`,
-    principal_paid: principalPaid,
-    interest_paid: interestPaid,
+    principal_paid: paymentPrincipalPaid,
+    interest_paid: paymentInterestPaid,
     remaining_balance: remainingBalance,
-    interest_installments_paid: interestInstallmentsPaid,
+    interest_installments_paid: paymentInterestInstallmentsPaid,
     note,
   };
 
-  const { data: payment, error: paymentError } = await adminClient
-    .from('loan_payments')
-    .insert({
-      contract_no: contract.contract_no,
-      member_no: contract.member_no,
-      payment_mode: paymentMode,
-      paid_date: paidDate,
-      principal_paid: principalPaid,
-      interest_paid: interestPaid,
-      interest_installments_paid: interestInstallmentsPaid,
-      remaining_balance: remainingBalance,
-      note,
-      created_by: currentUserId,
-    })
+  const paymentMutation = mergeTargetPayment
+    ? adminClient
+        .from('loan_payments')
+        .update({
+          payment_mode: storedPaymentMode,
+          principal_paid: paymentPrincipalPaid,
+          interest_paid: paymentInterestPaid,
+          interest_installments_paid: paymentInterestInstallmentsPaid,
+          remaining_balance: remainingBalance,
+          note,
+        })
+        .eq('id', mergeTargetPayment.id)
+    : adminClient
+        .from('loan_payments')
+        .insert({
+          contract_no: contract.contract_no,
+          member_no: contract.member_no,
+          payment_mode: storedPaymentMode,
+          paid_date: paidDate,
+          principal_paid: paymentPrincipalPaid,
+          interest_paid: paymentInterestPaid,
+          interest_installments_paid: paymentInterestInstallmentsPaid,
+          remaining_balance: remainingBalance,
+          note,
+          created_by: currentUserId,
+        });
+
+  const { data: payment, error: paymentError } = await paymentMutation
     .select('id, contract_no, member_no, payment_mode, paid_date, principal_paid, interest_paid, interest_installments_paid, remaining_balance, note, created_at')
     .single();
 
@@ -575,6 +639,7 @@ async function savePayment(payload: Record<string, unknown>, currentUserId: stri
   return {
     payment,
     preview,
+    merged_existing_payment: Boolean(mergeTargetPayment),
   };
 }
 
@@ -681,7 +746,15 @@ Deno.serve(async (request) => {
         throw new Error('resource ไม่ถูกต้อง');
       }
 
-      return jsonResponse({ success: true, message: 'บันทึกรายการรับชำระเรียบร้อย', data: await savePayment(payload, currentUser.id) });
+      const result = await savePayment(payload, currentUser.id);
+      return jsonResponse({
+        success: true,
+        message: result.merged_existing_payment ? 'อัปเดตรายการรับชำระเดิมและบันทึกกลบหนี้เรียบร้อย' : 'บันทึกรายการรับชำระเรียบร้อย',
+        data: {
+          payment: result.payment,
+          preview: result.preview,
+        },
+      });
     }
 
     if (request.method === 'PUT') {
