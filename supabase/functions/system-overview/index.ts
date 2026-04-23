@@ -15,7 +15,8 @@ interface LoanReportPaperSettings {
   margin_right_mm: number;
   margin_bottom_mm: number;
   margin_left_mm: number;
-  font_scale: number;
+  font_family: 'angsana' | 'thsarabun' | 'cordia';
+  font_size_px: number;
   table_width_percent: number;
   table_height_percent: number;
   column_settings: Record<string, { width_mm: number; height_mm: number; header_text: string }>;
@@ -39,7 +40,8 @@ const defaultLoanReportPaperSettings: LoanReportPaperSettings = {
   margin_right_mm: 10,
   margin_bottom_mm: 10,
   margin_left_mm: 10,
-  font_scale: 1,
+  font_family: 'angsana',
+  font_size_px: 16,
   table_width_percent: 100,
   table_height_percent: 100,
   column_settings: defaultLoanReportColumnSettings,
@@ -64,6 +66,7 @@ function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettin
   }
 
   const source = value as Record<string, unknown>;
+  const legacyScale = clampNumber(source.font_scale, 1, 0.85, 1.15);
   const legacyMargin = clampNumber(source.margin_mm, defaultLoanReportPaperSettings.margin_top_mm, 6, 25);
   const rawColumnSettings = source.column_settings && typeof source.column_settings === 'object'
     ? source.column_settings as Record<string, unknown>
@@ -91,7 +94,8 @@ function normalizeLoanReportPaperSettings(value: unknown): LoanReportPaperSettin
     margin_right_mm: clampNumber(source.margin_right_mm, legacyMargin, 6, 25),
     margin_bottom_mm: clampNumber(source.margin_bottom_mm, legacyMargin, 6, 25),
     margin_left_mm: clampNumber(source.margin_left_mm, legacyMargin, 6, 25),
-    font_scale: clampNumber(source.font_scale, defaultLoanReportPaperSettings.font_scale, 0.85, 1.15),
+    font_family: source.font_family === 'thsarabun' || source.font_family === 'cordia' ? source.font_family : 'angsana',
+    font_size_px: clampNumber(source.font_size_px, Math.round(defaultLoanReportPaperSettings.font_size_px * legacyScale), 12, 24),
     table_width_percent: clampNumber(source.table_width_percent, defaultLoanReportPaperSettings.table_width_percent, 70, 100),
     table_height_percent: clampNumber(source.table_height_percent, defaultLoanReportPaperSettings.table_height_percent, 70, 100),
     column_settings: columnSettings,

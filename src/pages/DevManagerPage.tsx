@@ -110,6 +110,12 @@ const reportTypeLabels: Record<LoanReportType, string> = {
   outstanding: 'รายงานหนี้คงค้าง',
 };
 
+const reportFontLabels: Record<LoanReportPaperSettings['font_family'], string> = {
+  angsana: 'Angsana New',
+  thsarabun: 'TH Sarabun New',
+  cordia: 'Cordia New',
+};
+
 const defaultPaperSettings: LoanReportPaperSettings = {
   paper_size: 'a4',
   orientation: 'portrait',
@@ -117,7 +123,8 @@ const defaultPaperSettings: LoanReportPaperSettings = {
   margin_right_mm: 10,
   margin_bottom_mm: 10,
   margin_left_mm: 10,
-  font_scale: 1,
+  font_family: 'angsana',
+  font_size_px: 16,
   table_width_percent: 100,
   table_height_percent: 100,
   column_settings: defaultReportColumnSettings,
@@ -138,6 +145,18 @@ function pxToMm(value: number) {
 
 function getPaperPresetColumnSettings(orientation: LoanReportPaperSettings['orientation']): LoanReportColumnSettings {
   return orientation === 'landscape' ? a4LandscapeColumnSettings : a4PortraitColumnSettings;
+}
+
+function getReportFontFamilyStack(fontFamily: LoanReportPaperSettings['font_family']) {
+  switch (fontFamily) {
+    case 'thsarabun':
+      return '"TH Sarabun New", "THSarabunNew", serif';
+    case 'cordia':
+      return '"Cordia New", "CordiaUPC", serif';
+    case 'angsana':
+    default:
+      return '"Angsana New", "AngsanaUPC", serif';
+  }
 }
 
 function normalizeReportColumnSettings(value: unknown): LoanReportColumnSettings {
@@ -168,6 +187,7 @@ function normalizePaperSettings(value: unknown): LoanReportPaperSettings {
   }
 
   const parsed = value as Partial<LoanReportPaperSettings>;
+  const legacyScale = clampPaperSetting((parsed as Partial<{ font_scale: number }>).font_scale, 1, 0.85, 1.15);
   const legacyMargin = clampPaperSetting((parsed as Partial<{ margin_mm: number }>).margin_mm, defaultPaperSettings.margin_top_mm, 6, 25);
   return {
     paper_size: parsed.paper_size === 'letter' ? 'letter' : 'a4',
@@ -176,7 +196,8 @@ function normalizePaperSettings(value: unknown): LoanReportPaperSettings {
     margin_right_mm: clampPaperSetting(parsed.margin_right_mm, legacyMargin, 6, 25),
     margin_bottom_mm: clampPaperSetting(parsed.margin_bottom_mm, legacyMargin, 6, 25),
     margin_left_mm: clampPaperSetting(parsed.margin_left_mm, legacyMargin, 6, 25),
-    font_scale: clampPaperSetting(parsed.font_scale, defaultPaperSettings.font_scale, 0.85, 1.15),
+    font_family: parsed.font_family === 'thsarabun' || parsed.font_family === 'cordia' ? parsed.font_family : 'angsana',
+    font_size_px: clampPaperSetting(parsed.font_size_px, Math.round(defaultPaperSettings.font_size_px * legacyScale), 12, 24),
     table_width_percent: clampPaperSetting(parsed.table_width_percent, defaultPaperSettings.table_width_percent, 70, 100),
     table_height_percent: clampPaperSetting(parsed.table_height_percent, defaultPaperSettings.table_height_percent, 70, 100),
     column_settings: normalizeReportColumnSettings(parsed.column_settings),
@@ -683,8 +704,8 @@ export function DevManagerPage() {
       paddingRight: `${paperSettings.margin_right_mm}mm`,
       paddingBottom: `${paperSettings.margin_bottom_mm}mm`,
       paddingLeft: `${paperSettings.margin_left_mm}mm`,
-      fontFamily: '"Angsana New", "AngsanaUPC", serif',
-      fontSize: `${14 * paperSettings.font_scale}pt`,
+      fontFamily: getReportFontFamilyStack(paperSettings.font_family),
+      fontSize: `${paperSettings.font_size_px}px`,
     };
 
     return (
@@ -1693,12 +1714,16 @@ export function DevManagerPage() {
                 <input type="number" min={6} max={25} value={paperSettings.margin_left_mm} onChange={(event) => updatePaperSetting('margin_left_mm', Number(event.target.value) || defaultPaperSettings.margin_left_mm)} />
               </div>
               <div className="field">
-                <span>ขนาดตัวอักษร</span>
-                <select value={String(paperSettings.font_scale)} onChange={(event) => updatePaperSetting('font_scale', Number(event.target.value))}>
-                  <option value="0.9">เล็ก</option>
-                  <option value="1">ปกติ</option>
-                  <option value="1.08">ใหญ่</option>
+                <span>รูปแบบตัวอักษร</span>
+                <select value={paperSettings.font_family} onChange={(event) => updatePaperSetting('font_family', event.target.value as LoanReportPaperSettings['font_family'])}>
+                  {Object.entries(reportFontLabels).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
                 </select>
+              </div>
+              <div className="field">
+                <span>ขนาดตัวอักษร (px)</span>
+                <input type="number" min={12} max={24} value={paperSettings.font_size_px} onChange={(event) => updatePaperSetting('font_size_px', Number(event.target.value) || defaultPaperSettings.font_size_px)} />
               </div>
               <div className="field">
                 <span>ความกว้างตาราง (%)</span>

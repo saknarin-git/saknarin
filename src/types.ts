@@ -338,7 +338,8 @@ export interface LoanReportPaperSettings {
   margin_right_mm: number;
   margin_bottom_mm: number;
   margin_left_mm: number;
-  font_scale: number;
+  font_family: 'angsana' | 'thsarabun' | 'cordia';
+  font_size_px: number;
   table_width_percent: number;
   table_height_percent: number;
   column_settings: LoanReportColumnSettings;

@@ -20,7 +20,8 @@ const defaultSettings: AppSettings = {
     margin_right_mm: 10,
     margin_bottom_mm: 10,
     margin_left_mm: 10,
-    font_scale: 1,
+    font_family: 'angsana',
+    font_size_px: 16,
     table_width_percent: 100,
     table_height_percent: 100,
     column_settings: {
