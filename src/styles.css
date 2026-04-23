@@ -1105,55 +1105,64 @@ textarea {
 .loan-report-cover-page {
   display: grid;
   align-content: start;
-  gap: 20px;
+  gap: 24px;
+  font-weight: 700;
 }
 
 .loan-report-cover-block h2 {
-  margin: 6px 0 12px;
-  font-size: 1.9rem;
+  margin: 8px 0 16px;
+  font-size: 2.6rem;
+  font-weight: 800;
 }
 
 .loan-report-cover-meta {
   display: grid;
-  gap: 6px;
+  gap: 8px;
+  font-size: 1.35rem;
+  font-weight: 700;
 }
 
 .loan-report-summary-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
 }
 
 .loan-report-cover-notes {
   border-top: 1px solid #d8ead8;
-  padding-top: 12px;
+  padding-top: 14px;
   display: grid;
-  gap: 8px;
+  gap: 10px;
+  font-size: 1.2rem;
+  font-weight: 700;
 }
 
 .loan-report-cover-note-list {
   display: grid;
-  gap: 6px;
-  font-size: 0.92rem;
+  gap: 8px;
+  font-size: 1.15rem;
+  font-weight: 600;
   line-height: 1.5;
 }
 
 .loan-report-summary-card {
   border: 1px solid #d8ead8;
   border-radius: 16px;
-  padding: 14px;
+  padding: 16px;
   background: #f9fff7;
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .loan-report-summary-card span {
   color: #597259;
-  font-size: 0.92rem;
+  font-size: 1.1rem;
+  font-weight: 700;
 }
 
 .loan-report-summary-card strong {
-  font-size: 1.25rem;
+  font-size: 1.7rem;
+  font-weight: 800;
   color: #1b4332;
 }
 
