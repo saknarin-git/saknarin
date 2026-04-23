@@ -1191,6 +1191,7 @@ textarea {
 
 .loan-report-table th,
 .loan-report-table td {
+  box-sizing: border-box;
   border: 1px solid #d8ead8;
   padding: 0.5px 5px;
   vertical-align: top;
