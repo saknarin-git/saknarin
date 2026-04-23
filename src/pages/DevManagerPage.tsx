@@ -547,15 +547,25 @@ export function DevManagerPage() {
 
   function updatePaperColumnSetting(columnKey: LoanReportColumnKey, dimension: 'width_mm' | 'height_mm', value: number) {
     setPaperSettings((current) => {
+      const nextColumnSettings = dimension === 'height_mm'
+        ? reportColumnOrder.reduce<LoanReportColumnSettings>((map, key) => {
+            map[key] = {
+              ...current.column_settings[key],
+              height_mm: value,
+            };
+            return map;
+          }, { ...current.column_settings })
+        : {
+            ...current.column_settings,
+            [columnKey]: {
+              ...current.column_settings[columnKey],
+              [dimension]: value,
+            },
+          };
+
       const nextSettings = normalizePaperSettings({
         ...current,
-        column_settings: {
-          ...current.column_settings,
-          [columnKey]: {
-            ...current.column_settings[columnKey],
-            [dimension]: value,
-          },
-        },
+        column_settings: nextColumnSettings,
       });
       setSettings((currentSettings) => ({
         ...currentSettings,
@@ -1696,7 +1706,7 @@ export function DevManagerPage() {
                         />
                       </label>
                       <label className="field report-column-setting-field">
-                        <span>สูง (มม.)</span>
+                        <span>สูงต่อแถว (มม.)</span>
                         <input
                           type="number"
                           min={6}
