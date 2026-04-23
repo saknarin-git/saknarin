@@ -627,23 +627,22 @@ export function DevManagerPage() {
     const usablePageHeight = Math.max(160, paperDimensions.height - paperSettings.margin_top_mm - paperSettings.margin_bottom_mm);
     const tableShellWidth = `${usablePageWidth * (paperSettings.table_width_percent / 100)}mm`;
     const columnSettings = paperSettings.column_settings;
-    const rowHeightMm = Math.max(...reportColumnOrder.map((columnKey) => columnSettings[columnKey].height_mm));
-    const detailHeaderReserveMm = 16;
-    const detailPageGapReserveMm = 4;
-    const tableHeaderFooterReserveMm = rowHeightMm * 2;
+    const configuredRowHeightMm = Math.max(...reportColumnOrder.map((columnKey) => columnSettings[columnKey].height_mm));
+    const detailHeaderReserveMm = 14;
+    const detailPageGapReserveMm = 3;
     const detailTableAvailableHeight = Math.max(70, usablePageHeight - detailHeaderReserveMm - detailPageGapReserveMm);
     const detailTableHeightMm = Math.max(70, detailTableAvailableHeight * (paperSettings.table_height_percent / 100));
-    const detailBodyAvailableHeightMm = Math.max(rowHeightMm, detailTableHeightMm - tableHeaderFooterReserveMm);
-    const detailRowsPerPage = Math.max(1, Math.min(report.rows_per_page, Math.floor(detailBodyAvailableHeightMm / rowHeightMm)));
-    const pages = chunkReportRows(report.rows, detailRowsPerPage);
+    const totalTableRows = report.rows_per_page + 2;
+    const effectiveRowHeightMm = Math.min(configuredRowHeightMm, roundMoney(detailTableHeightMm / totalTableRows));
+    const pages = chunkReportRows(report.rows, report.rows_per_page);
     const detailTableShellStyle = {
       width: tableShellWidth,
       minHeight: `${detailTableHeightMm}mm`,
       maxHeight: `${detailTableHeightMm}mm`,
     };
     const getColumnCellStyle = (columnKey: LoanReportColumnKey) => ({
-      minHeight: `${columnSettings[columnKey].height_mm}mm`,
-      height: `${columnSettings[columnKey].height_mm}mm`,
+      minHeight: `${effectiveRowHeightMm}mm`,
+      height: `${effectiveRowHeightMm}mm`,
     });
     const pageStyle = {
       width: `${paperDimensions.width}mm`,
@@ -691,7 +690,7 @@ export function DevManagerPage() {
 
           {pages.map((pageRows, pageIndex) => {
             const totals = getReportPageTotals(report, pageRows);
-            const paddedRows = getPageRows(pageRows, detailRowsPerPage);
+            const paddedRows = getPageRows(pageRows, report.rows_per_page);
 
             return (
               <section key={`${report.report_type}-page-${pageIndex + 1}`} className="loan-report-print-page loan-report-detail-page" style={pageStyle}>
