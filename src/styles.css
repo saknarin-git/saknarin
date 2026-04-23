@@ -1203,9 +1203,9 @@ textarea {
   box-sizing: border-box;
   border: 1px solid #d8ead8;
   padding: 0.5px 5px;
-  vertical-align: top;
-  font-size: 0.82em;
-  line-height: 0.95;
+  vertical-align: middle;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .loan-report-table th {
